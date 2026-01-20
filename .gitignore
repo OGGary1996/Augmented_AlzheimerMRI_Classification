@@ -1,0 +1,21 @@
+# data
+/dataset
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# env
+/.env
+/.venv
+
+# os
+.DS_Store
+
+# ide
+./.idea
+./.vscode
+
+# jupyter
+.ipynb_checkpoints/
