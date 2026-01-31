@@ -22,3 +22,4 @@ __pycache__/
 .ipynb_checkpoints/
 /MRI Dataset/archive
 MRI Dataset/archive.zip
+MRI Dataset/Augmented_Alzheimer_Model.h5
