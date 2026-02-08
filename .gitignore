@@ -15,8 +15,8 @@ __pycache__/
 .DS_Store
 
 # ide
-./.idea
-./.vscode
+.idea/
+.vscode/
 
 # jupyter
 .ipynb_checkpoints/
