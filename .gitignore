@@ -23,7 +23,3 @@ __pycache__/
 /MRI Dataset/archive
 MRI Dataset/archive.zip
 MRI Dataset/Augmented_Alzheimer_Model.h5
-
-# model
-/MRI Dataset/model.png
-/MRI Dataset/models/
