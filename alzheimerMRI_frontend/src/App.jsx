@@ -1,69 +1,73 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import LiquidEther from './LiquidEther';
 import GradientText from './GradientText';
 import TrueFocus from './TrueFocus';
 import Threads from './Threads';
+import CountUp from './CountUp';
+import Orb from './Orb';
+import CardSwap, { Card } from './CardSwap';
+import Stepper, { Step } from './Stepper';
+
+import mildImg from './assets/MildDemented/0a0a0acd-8bd8-4b79-b724-cc5711e83bc7.jpg';
+import moderateImg from './assets/ModerateDemented/0a0d37fb-adeb-4e0e-8bc8-624cd70fc6e7.jpg';
+import nonImg from './assets/NonDemented/0a4abb93-5af1-4d3a-a475-3be960cdd4af.jpg';
+import veryMildImg from './assets/VeryMildDemented/0a1d2c6b-8a59-4e07-879f-fd4f4b76db34.jpg';
+
 import { 
   Brain, 
-  Upload, 
   Activity, 
-  FileText, 
-  CheckCircle, 
-  AlertCircle, 
-  ChevronRight,
+  Upload,
+  CheckCircle,
   Loader2
 } from 'lucide-react';
 
 function App() {
-  const [formData, setFormData] = useState({
-    age: '',
-    gender: 'female',
-    mmse: '',
+  const [stepData, setStepData] = useState({
+    step1: '',
+    step2: '',
+    step3: '',
+    step4: '',
+    step5: ''
   });
-  const [file, setFile] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
+  const [stepperStep, setStepperStep] = useState(1);
+  const [mriFile, setMriFile] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [stepperCardHeight, setStepperCardHeight] = useState(0);
   
   const awarenessRef = useRef(null);
+  const inputSectionRef = useRef(null);
+  const stepperCardRef = useRef(null);
 
   const scrollToAwareness = () => {
     awarenessRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+  const scrollToInput = () => {
+    inputSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
-    }
+  const handleStepInputChange = (stepKey) => (e) => {
+    setStepData(prev => ({
+      ...prev,
+      [stepKey]: e.target.value
+    }));
   };
 
-  const handleChange = (e) => {
-    if (e.target.files) {
-      setFile(e.target.files[0]);
-    } else {
-      setFormData({
-        ...formData,
-        [e.target.name]: e.target.value
-      });
-    }
+  const handleMriFileChange = (e) => {
+    const selectedFile = e.target.files?.[0] ?? null;
+    setMriFile(selectedFile);
+    setUploadStatus('');
+  };
+
+  const handleMriUploadSubmit = (e) => {
+    e.preventDefault();
+    if (!mriFile) return;
+    setUploadStatus('MRI image added successfully.');
   };
 
   const handleAnalyze = () => {
-    if (!file) return;
-    
     setAnalyzing(true);
     setResult(null);
 
@@ -78,6 +82,25 @@ function App() {
       });
     }, 2500);
   };
+
+  const isAllStepsEmpty = Object.values(stepData).every(value => !value.trim());
+  const isAnalyzeDisabled = stepperStep === 5 && isAllStepsEmpty;
+
+  useEffect(() => {
+    const node = stepperCardRef.current;
+    if (!node) return;
+
+    const updateHeight = () => {
+      setStepperCardHeight(node.offsetHeight || 0);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => updateHeight());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [stepperStep, analyzing]);
 
   return (
     <div className="min-h-screen bg-black text-slate-50 selection:bg-brand-500/30">
@@ -135,7 +158,10 @@ function App() {
             </h1>
             
             <div className="flex items-center gap-10 mt-16">
-              <button className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-semibold border border-white hover:bg-slate-100 transition-colors">
+              <button 
+                onClick={scrollToInput}
+                className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-semibold border border-white hover:bg-slate-100 transition-colors"
+              >
                 Get Started
               </button>
               <button 
@@ -148,58 +174,158 @@ function App() {
           </div>
         </section>
 
-        <div className="max-w-5xl mx-auto px-6 space-y-32">
+        <div className="max-w-[90rem] mx-auto px-4 md:px-8 xl:px-12 space-y-32">
           {/* Awareness Section */}
-          <section ref={awarenessRef} className="py-32 border-b border-white/10">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div className="space-y-6">
-                <h2 className="text-3xl font-bold text-white tracking-tight">
-                  Understanding Alzheimer's Disease
-                </h2>
-                <div className="space-y-4 text-slate-400 leading-relaxed">
-                  <p>
-                    Alzheimer's disease is a progressive neurologic disorder that causes the brain to shrink (atrophy) and brain cells to die. It is the most common cause of dementia — a continuous decline in thinking, behavioral and social skills that affects a person's ability to function independently.
-                  </p>
-                  <p>
-                    Early detection is crucial. Identifying the disease in its prodromal or mild stages allows for interventions that can significantly slow progression, manage symptoms, and improve the quality of life for patients and their families.
-                  </p>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-2xl font-bold text-brand-400">50M+</span>
-                    <span className="text-xs text-slate-500 uppercase tracking-wider">Global Cases</span>
+          <section ref={awarenessRef} className="py-32">
+            <div className="w-full px-0 md:px-2 xl:px-4 space-y-16">
+              {/* Part 1: Understanding Alzheimer's Disease */}
+              <div className="grid md:grid-cols-[1.2fr_1fr] gap-6 xl:gap-8 items-center w-full">
+                <div className="space-y-8 text-left w-full md:pr-2 xl:pr-4">
+                  <h2 className="text-3xl font-bold text-white tracking-tight">
+                    Understanding Alzheimer's Disease
+                  </h2>
+                  <div className="space-y-6 text-slate-400 leading-relaxed text-lg">
+                    <p>
+                      Alzheimer’s disease is a progressive neurodegenerative disorder that gradually impairs memory, cognition, and daily functioning. Structural brain changes often begin years before noticeable symptoms appear, making early detection both challenging and critical.
+                    </p>
+                    <p>
+                      Globally, over 50 million people are living with dementia, and the number continues to rise. Traditional diagnostic approaches rely heavily on clinical assessments and imaging interpretation, which may detect the disease only after significant progression.
+                    </p>
+                    <p>
+                      Early-stage identification offers the greatest opportunity to slow decline, support treatment planning, and improve long-term quality of life.
+                    </p>
                   </div>
-                  <div className="w-px h-12 bg-white/10 mx-4"></div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-2xl font-bold text-brand-400">1 in 3</span>
-                    <span className="text-xs text-slate-500 uppercase tracking-wider">Seniors Affected</span>
+                  <div className="flex justify-start gap-8 pt-4">
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                        <CountUp from={0} to={55} separator="," direction="up" duration={1} className="count-up-text" />M+
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">Global Cases</span>
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                        <CountUp from={0} to={1} duration={1} />&nbsp;in&nbsp;<CountUp from={0} to={3} duration={1} />
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">Seniors Affected</span>
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                         <CountUp from={0} to={3} duration={1} />&nbsp;Seconds
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">A New Case</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="h-[590px] xl:h-[620px] w-full relative md:translate-x-2 xl:translate-x-4">
+                  <div className="relative h-full w-full">
+                    <CardSwap
+                      width={390}
+                      height={310}
+                      cardDistance={108}
+                      verticalDistance={86}
+                      delay={4000}
+                      pauseOnHover
+                      skewAmount={4}
+                      easing="elastic"
+                      containerClassName="translate-x-[-20%] translate-y-[-12%] max-[768px]:translate-x-[8%] max-[768px]:translate-y-[8%] max-[768px]:scale-[0.72] max-[480px]:translate-x-[16%] max-[480px]:translate-y-[16%] max-[480px]:scale-[0.56]"
+                    >
+                      <Card customClass="p-6 bg-slate-950/95 border-cyan-400/30 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">NonDemented</p>
+                        <img
+                          src={nonImg}
+                          alt="NonDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-cyan-300/20"
+                        />
+                      </Card>
+                      <Card customClass="p-6 bg-slate-950/95 border-emerald-400/30 shadow-[0_0_40px_rgba(52,211,153,0.14)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">ModerateDemented</p>
+                        <img
+                          src={moderateImg}
+                          alt="ModerateDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-emerald-300/20"
+                        />
+                      </Card>
+                      <Card customClass="p-6 bg-slate-950/95 border-violet-400/30 shadow-[0_0_40px_rgba(167,139,250,0.14)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-violet-300/80">MildDemented</p>
+                        <img
+                          src={mildImg}
+                          alt="MildDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-violet-300/20"
+                        />
+                      </Card>
+                      <Card customClass="p-6 bg-slate-950/95 border-amber-400/30 shadow-[0_0_40px_rgba(251,191,36,0.14)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-amber-300/80">VeryMildDemented</p>
+                        <img
+                          src={veryMildImg}
+                          alt="VeryMildDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-amber-300/20"
+                        />
+                      </Card>
+                    </CardSwap>
                   </div>
                 </div>
               </div>
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-tr from-brand-600/20 to-purple-600/20 rounded-2xl blur-2xl"></div>
-                <div className="relative bg-white/5 border border-white/10 p-8 rounded-2xl backdrop-blur-sm space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-lg bg-brand-500/20 text-brand-400">
-                      <AlertCircle size={24} />
+
+              {/* Part 2: Why AI-Driven Screening Matters */}
+              <div className="grid md:grid-cols-[1.2fr_1fr] gap-6 xl:gap-8 items-center w-full pt-16">
+                <div className="space-y-8 w-full md:pr-2 xl:pr-4">
+                  <h2 className="text-3xl font-bold text-white tracking-tight">
+                    Why AI-Driven Screening Matters
+                  </h2>
+                  <div className="space-y-6 text-slate-400 leading-relaxed text-lg">
+                    <p>
+                      Advances in Artificial Intelligence enable the analysis of subtle structural patterns in MRI scans and structured clinical data that may not be easily detectable by the human eye.
+                    </p>
+                    <div className="text-slate-400">
+                      <p className="mb-4">By leveraging deep learning models and optimized preprocessing techniques, our system supports:</p>
+                      <ul className="list-disc list-inside space-y-2 ml-4 text-base">
+                        <li>Early-stage Alzheimer’s classification</li>
+                        <li>Multi-class severity prediction</li>
+                        <li>Data-driven clinical decision assistance</li>
+                        <li>Scalable and web-based deployment for real-world use</li>
+                      </ul>
                     </div>
-                    <div>
-                      <h3 className="text-white font-semibold mb-2">Why Early Screening Matters?</h3>
-                      <p className="text-sm text-slate-400">
-                        Current treatments cannot stop Alzheimer's from progressing, but they can temporarily slow the worsening of dementia symptoms and improve quality of life for those with Alzheimer's and their caregivers.
-                      </p>
+                    <p>
+                      Our goal is to bridge the gap between cutting-edge research and practical, accessible AI tools for early Alzheimer’s detection.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-start gap-8 pt-4">
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                        <CountUp from={0} to={40} separator="," duration={1} />K+
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">MRI Images Analyzed</span>
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                        <CountUp from={0} to={2} separator="," duration={1} />K+
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">Clinical Records Integrated</span>
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <GradientText colors={["#5227FF", "#FF9FFC", "#B19EEF"]} animationSpeed={3} showBorder={false} className="text-4xl font-black">
+                        <CountUp from={0} to={97} duration={1} />%+
+                      </GradientText>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">Model Accuracy</span>
                     </div>
                   </div>
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-lg bg-purple-500/20 text-purple-400">
-                      <Brain size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold mb-2">Our AI Approach</h3>
-                      <p className="text-sm text-slate-400">
-                        Utilizing advanced Convolutional Neural Networks (CNN) to analyze MRI scans with high precision, detecting subtle patterns of atrophy often missed by the human eye in early stages.
-                      </p>
-                    </div>
+                </div>
+                <div className="h-[560px] w-full relative md:translate-x-2 xl:translate-x-4 flex items-center justify-center">
+                  <div className="absolute inset-0 z-0">
+                    <Orb
+                      hoverIntensity={1.51}
+                      rotateOnHover
+                      hue={0}
+                      forceHoverState={false}
+                      backgroundColor="#000000"
+                    />
+                  </div>
+                  <div className="relative z-10 w-48 h-48 rounded-full overflow-hidden shadow-[0_0_30px_rgba(82,39,255,0.3)]">
+                    <img 
+                      src={veryMildImg} 
+                      alt="AI Analysis Target" 
+                      className="w-full h-full object-cover opacity-90"
+                    />
                   </div>
                 </div>
               </div>
@@ -208,7 +334,7 @@ function App() {
         </div>
 
         {/* Input Section - Full Width */}
-        <div className="relative w-full py-16 mt-64">
+        <div ref={inputSectionRef} className="relative w-full py-16 mt-64">
           <div className="absolute inset-0 z-0 opacity-50">
             <Threads
               amplitude={3}
@@ -216,134 +342,151 @@ function App() {
               enableMouseInteraction
             />
           </div>
-          <section className="relative z-10 flex flex-col gap-8 max-w-2xl mx-auto px-6">
+          <section className="relative z-10 flex flex-col gap-8 max-w-5xl mx-auto px-6">
             
-            {/* Clinical Data Form */}
-            <div className="space-y-6">
-            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-sm">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
-                <FileText size={20} className="text-brand-400"/>
-                Clinical Data
+            <div className="space-y-6 text-center">
+              <h2 className="text-3xl font-bold text-white tracking-tight">
+                Secure Medical Data Submission
               </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Age</label>
-                  <input 
-                    type="number" 
-                    name="age"
-                    value={formData.age}
-                    onChange={handleChange}
-                    placeholder="e.g. 72"
-                    className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
-                  />
-                </div>
+              <div className="text-slate-400 leading-relaxed text-sm text-left max-w-3xl mx-auto">
+                <p>We prioritize patient privacy and data security.</p>
+                <p>
+                  All submitted clinical information and MRI scans are processed in real time and are not permanently stored on our servers.
+                </p>
+                <p>
+                  No personal medical data is retained, shared, or used for any purpose beyond generating the requested prediction.
+                </p>
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Gender</label>
-                  <select 
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
+            {/* Stepper Form */}
+            {analyzing ? (
+              <div className="flex flex-col items-center justify-center py-20 space-y-4 min-h-[400px]">
+                <Loader2 size={48} className="animate-spin text-brand-500" />
+                <p className="text-xl font-medium text-white">Processing Scan...</p>
+              </div>
+            ) : (
+              <div className="w-full mt-4 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-center">
+                <div className="w-full max-w-md">
+                  <Stepper
+                    initialStep={1}
+                    onStepChange={setStepperStep}
+                    onFinalStepCompleted={handleAnalyze}
+                    completeButtonText="Analyze Data"
+                    backButtonText="Back"
+                    nextButtonText="Next"
+                    nextButtonProps={{ disabled: isAnalyzeDisabled }}
+                    cardRef={stepperCardRef}
                   >
-                    <option value="female" className="bg-slate-900">Female</option>
-                    <option value="male" className="bg-slate-900">Male</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">MMSE Score</label>
-                  <input 
-                    type="number" 
-                    name="mmse"
-                    value={formData.mmse}
-                    onChange={handleChange}
-                    placeholder="0-30"
-                    className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">Mini-Mental State Examination</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Upload & Action */}
-          <div className="space-y-6 flex flex-col">
-            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-sm flex-1 flex flex-col">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
-                <Upload size={20} className="text-brand-400"/>
-                MRI Scan Upload
-              </h2>
-
-              <div 
-                className={`flex-1 border-2 border-dashed rounded-xl flex flex-col items-center justify-center p-8 transition-all ${
-                  dragActive 
-                    ? 'border-brand-500 bg-brand-500/10' 
-                    : file 
-                      ? 'border-brand-500/50 bg-brand-500/10' 
-                      : 'border-white/20 hover:border-brand-400 hover:bg-white/5'
-                }`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
-                <input 
-                  type="file" 
-                  id="file-upload" 
-                  className="hidden" 
-                  onChange={handleChange}
-                  accept="image/*,.dcm"
-                />
-                
-                {file ? (
-                  <div className="text-center">
-                    <div className="w-12 h-12 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <CheckCircle size={24} />
+                  <Step>
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-sm font-medium text-slate-300 mb-0">FunctionalAssessment</label>
+                      <p className="text-xs text-slate-500 leading-snug">Evaluates higher-level daily function, including planning, task execution, and independent living ability.</p>
+                      <input
+                        type="text"
+                        value={stepData.step1}
+                        onChange={handleStepInputChange('step1')}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
+                      />
                     </div>
-                    <p className="text-sm font-medium text-white">{file.name}</p>
-                    <p className="text-xs text-slate-400 mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                    <button 
-                      onClick={() => setFile(null)}
-                      className="text-xs text-red-400 hover:text-red-300 mt-3 font-medium underline decoration-red-400/30 underline-offset-2"
+                  </Step>
+                  <Step>
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-sm font-medium text-slate-300 mb-0">ADL</label>
+                      <p className="text-xs text-slate-500 leading-snug">Assesses Activities of Daily Living such as dressing, bathing, feeding, and other basic self-care tasks.</p>
+                      <input
+                        type="text"
+                        value={stepData.step2}
+                        onChange={handleStepInputChange('step2')}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
+                      />
+                    </div>
+                  </Step>
+                  <Step>
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-sm font-medium text-slate-300 mb-0">MemoryComplaints</label>
+                      <p className="text-xs text-slate-500 leading-snug">Captures subjective memory concerns reported by the patient or caregiver in routine cognitive observation.</p>
+                      <input
+                        type="text"
+                        value={stepData.step3}
+                        onChange={handleStepInputChange('step3')}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
+                      />
+                    </div>
+                  </Step>
+                  <Step>
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-sm font-medium text-slate-300 mb-0">MMSE</label>
+                      <p className="text-xs text-slate-500 leading-snug">Mini-Mental State Examination score used to quantify orientation, recall, attention, and language performance.</p>
+                      <input
+                        type="text"
+                        value={stepData.step4}
+                        onChange={handleStepInputChange('step4')}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
+                      />
+                    </div>
+                  </Step>
+                  <Step>
+                    <div className="space-y-2 pt-1">
+                      <label className="block text-sm font-medium text-slate-300 mb-0">BehavioralProblems</label>
+                      <p className="text-xs text-slate-500 leading-snug">Tracks neuropsychiatric symptoms such as agitation, mood changes, irritability, or behavior instability.</p>
+                      <input
+                        type="text"
+                        value={stepData.step5}
+                        onChange={handleStepInputChange('step5')}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 rounded-lg bg-black/50 border border-white/10 text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all placeholder:text-slate-600"
+                      />
+                    </div>
+                  </Step>
+                  </Stepper>
+                </div>
+
+                <div
+                  className="w-full max-w-md rounded-3xl shadow-xl border border-white/10 bg-white/[0.16] backdrop-blur-sm p-8"
+                  style={stepperCardHeight > 0 ? { height: `${stepperCardHeight}px` } : undefined}
+                >
+                  <h3 className="text-lg font-semibold text-white">MRI Image Upload</h3>
+                  <p className="text-xs text-slate-400 mt-1">Upload a single MRI image file for later analysis.</p>
+
+                  <form className="mt-5 space-y-4" onSubmit={handleMriUploadSubmit}>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1">MRI Image File</label>
+                      <input
+                        type="file"
+                        accept="image/*,.dcm"
+                        onChange={handleMriFileChange}
+                        className="w-full px-3 py-2 rounded-lg bg-black/50 border border-white/10 text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#5227FF] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-[#6340FF]"
+                      />
+                    </div>
+
+                    {mriFile && (
+                      <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-emerald-300 shrink-0" />
+                        <p className="text-xs text-emerald-200">
+                          {mriFile.name} ({(mriFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={!mriFile}
+                      className="w-full flex items-center justify-center gap-2 rounded-full bg-[#5227FF] py-2.5 text-sm font-medium text-white transition hover:bg-[#6340FF] active:bg-[#3F17D8] disabled:bg-slate-500 disabled:cursor-not-allowed"
                     >
-                      Remove file
+                      <Upload size={15} />
+                      Upload MRI
                     </button>
-                  </div>
-                ) : (
-                  <label htmlFor="file-upload" className="cursor-pointer text-center">
-                    <div className="w-12 h-12 bg-brand-500/20 text-brand-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Upload size={24} />
-                    </div>
-                    <p className="text-sm font-medium text-white">Click to upload or drag and drop</p>
-                    <p className="text-xs text-slate-400 mt-1">DICOM, PNG, JPG up to 50MB</p>
-                  </label>
-                )}
-              </div>
-            </div>
 
-            <button
-              onClick={handleAnalyze}
-              disabled={!file || analyzing}
-              className={`w-full py-4 rounded-xl font-semibold text-lg shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${
-                !file || analyzing
-                  ? 'bg-white/5 text-slate-500 cursor-not-allowed shadow-none border border-white/5'
-                  : 'bg-brand-600 hover:bg-brand-500 text-white'
-              }`}
-            >
-              {analyzing ? (
-                <>
-                  <Loader2 size={24} className="animate-spin" />
-                  Processing Scan...
-                </>
-              ) : (
-                <>
-                  Analyze Data <ChevronRight size={20} />
-                </>
-              )}
-            </button>
-          </div>
+                    {uploadStatus && <p className="text-xs text-emerald-300">{uploadStatus}</p>}
+                  </form>
+                </div>
+              </div>
+            )}
           </section>
         </div>
 
