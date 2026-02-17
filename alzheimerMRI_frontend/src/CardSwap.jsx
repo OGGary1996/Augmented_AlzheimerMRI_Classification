@@ -9,12 +9,16 @@ import React, {
 } from 'react';
 import { gsap } from 'gsap';
 
-export const Card = forwardRef(({ customClass, ...rest }, ref) => (
+export const Card = forwardRef(({ customClass, children, ...rest }, ref) => (
   <div
     ref={ref}
     {...rest}
-    className={`absolute top-1/2 left-1/2 rounded-xl border border-white bg-black [transform-style:preserve-3d] [will-change:transform] [backface-visibility:hidden] ${customClass ?? ''} ${rest.className ?? ''}`.trim()}
-  />
+    className={`absolute top-1/2 left-1/2 [transform-style:preserve-3d] [will-change:transform] [backface-visibility:hidden] ${rest.className ?? ''}`.trim()}
+  >
+    <div className={`w-full h-full transition-all duration-300 hover:scale-105 cursor-pointer ${customClass ?? ''}`.trim()}>
+      {children}
+    </div>
+  </div>
 ));
 Card.displayName = 'Card';
 

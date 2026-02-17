@@ -67,20 +67,48 @@ function App() {
     setUploadStatus('MRI image added successfully.');
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     setAnalyzing(true);
     setResult(null);
 
-    // Simulate API call
-    setTimeout(() => {
-      setAnalyzing(false);
-      setResult({
-        classification: 'Very Mild Demented',
-        confidence: 88.5,
-        explanation: 'Analysis detects slight hippocampal atrophy consistent with early-stage progression. Clinical correlation recommended.',
-        severity: 'low' // low, medium, high
+    const payload = {
+      FunctionalAssessment: Number(stepData.step1) || 0,
+      ADL: Number(stepData.step2) || 0,
+      MemoryComplaints: Number(stepData.step3) || 0,
+      MMSE: Number(stepData.step4) || 0,
+      BehavioralProblems: Number(stepData.step5) || 0
+    };
+
+    try {
+      const response = await fetch('/predict/clinical', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-    }, 2500);
+
+      if (!response.ok) throw new Error('Network response was not ok');
+
+      const data = await response.json();
+      
+      const prob = Number(data.probability);
+      const percentage = (prob * 100).toFixed(1);
+      const isPositive = data.prediction === 1 || data.diagnosis === 'Positive';
+
+      setResult({
+        classification: data.diagnosis || (isPositive ? 'Positive' : 'Negative'),
+        confidence: percentage,
+        prediction: data.prediction,
+        explanation: isPositive 
+          ? "The analysis indicates a high likelihood of Alzheimer's based on the provided clinical metrics. Please consult a specialist."
+          : "The analysis indicates a low likelihood of Alzheimer's based on the provided clinical metrics. Regular monitoring is advised.",
+        severity: isPositive ? 'high' : 'low'
+      });
+    } catch (error) {
+      console.error('Error analyzing data:', error);
+      alert('Failed to connect to analysis server. Please try again.');
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const isAllStepsEmpty = Object.values(stepData).every(value => !value.trim());
@@ -217,19 +245,19 @@ function App() {
                   </div>
                 </div>
                 <div className="h-[590px] xl:h-[620px] w-full relative md:translate-x-2 xl:translate-x-4">
-                  <div className="relative h-full w-full">
+                  <div className="relative h-full w-full overflow-hidden">
                     <CardSwap
-                      width={390}
+                      width={420}
                       height={310}
-                      cardDistance={108}
-                      verticalDistance={86}
-                      delay={4000}
+                      cardDistance={100}
+                      verticalDistance={70}
+                      delay={3000}
                       pauseOnHover
                       skewAmount={4}
                       easing="elastic"
                       containerClassName="translate-x-[-20%] translate-y-[-12%] max-[768px]:translate-x-[8%] max-[768px]:translate-y-[8%] max-[768px]:scale-[0.72] max-[480px]:translate-x-[16%] max-[480px]:translate-y-[16%] max-[480px]:scale-[0.56]"
                     >
-                      <Card customClass="p-6 bg-slate-950/95 border-cyan-400/30 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-cyan-400/30 shadow-[0_0_40px_rgba(34,211,238,0.15)] hover:border-cyan-400 hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]">
                         <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">NonDemented</p>
                         <img
                           src={nonImg}
@@ -237,7 +265,7 @@ function App() {
                           className="mt-3 h-56 w-full rounded-lg object-cover border border-cyan-300/20"
                         />
                       </Card>
-                      <Card customClass="p-6 bg-slate-950/95 border-emerald-400/30 shadow-[0_0_40px_rgba(52,211,153,0.14)]">
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-emerald-400/30 shadow-[0_0_40px_rgba(52,211,153,0.14)] hover:border-emerald-400 hover:shadow-[0_0_60px_rgba(52,211,153,0.6)]">
                         <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">ModerateDemented</p>
                         <img
                           src={moderateImg}
@@ -245,7 +273,7 @@ function App() {
                           className="mt-3 h-56 w-full rounded-lg object-cover border border-emerald-300/20"
                         />
                       </Card>
-                      <Card customClass="p-6 bg-slate-950/95 border-violet-400/30 shadow-[0_0_40px_rgba(167,139,250,0.14)]">
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-violet-400/30 shadow-[0_0_40px_rgba(167,139,250,0.14)] hover:border-violet-400 hover:shadow-[0_0_60px_rgba(167,139,250,0.6)]">
                         <p className="text-xs uppercase tracking-[0.18em] text-violet-300/80">MildDemented</p>
                         <img
                           src={mildImg}
@@ -253,7 +281,7 @@ function App() {
                           className="mt-3 h-56 w-full rounded-lg object-cover border border-violet-300/20"
                         />
                       </Card>
-                      <Card customClass="p-6 bg-slate-950/95 border-amber-400/30 shadow-[0_0_40px_rgba(251,191,36,0.14)]">
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-amber-400/30 shadow-[0_0_40px_rgba(251,191,36,0.14)] hover:border-amber-400 hover:shadow-[0_0_60px_rgba(251,191,36,0.6)]">
                         <p className="text-xs uppercase tracking-[0.18em] text-amber-300/80">VeryMildDemented</p>
                         <img
                           src={veryMildImg}
@@ -339,7 +367,7 @@ function App() {
             <Threads
               amplitude={3}
               distance={0}
-              enableMouseInteraction
+              // enableMouseInteraction
             />
           </div>
           <section className="relative z-10 flex flex-col gap-8 max-w-5xl mx-auto px-6">
@@ -493,65 +521,56 @@ function App() {
         <div className="max-w-5xl mx-auto px-6 space-y-16">
         {/* Result Section */}        {result && (
           <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-200">
-              <div className="p-1 bg-gradient-to-r from-brand-500 via-purple-500 to-brand-500 opacity-20"></div>
+            <div className="bg-white/[0.16] backdrop-blur-sm rounded-3xl shadow-xl overflow-hidden border border-white/10">
               <div className="p-8 md:p-10">
                 <div className="flex flex-col md:flex-row gap-8 items-start">
                   
                   <div className="flex-1 space-y-6">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Analysis Result</h3>
+                      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Clinical Assessment Result</h3>
                       <div className="flex items-center gap-3">
-                        <h2 className="text-3xl font-bold text-slate-900">{result.classification}</h2>
+                        <h2 className="text-3xl font-bold text-white">{result.classification}</h2>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                          result.classification.includes('Non') 
-                            ? 'bg-green-50 text-green-700 border-green-200' 
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                          result.classification === 'Negative' 
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
                         }`}>
-                          {result.confidence}% Confidence
+                          Diagnosis
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="p-4 bg-black/30 rounded-xl border border-white/10">
                       <div className="flex gap-3">
-                        <Brain className="text-brand-600 shrink-0 mt-1" size={20} />
-                        <p className="text-slate-700 leading-relaxed">
+                        <Brain className={`shrink-0 mt-1 ${result.classification === 'Negative' ? 'text-emerald-400' : 'text-rose-400'}`} size={20} />
+                        <p className="text-slate-300 leading-relaxed">
                           {result.explanation}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="w-full md:w-1/3 bg-slate-50 rounded-xl p-6 border border-slate-100">
-                     <h4 className="text-sm font-semibold text-slate-900 mb-4">Confidence Metric</h4>
+                  <div className="w-full md:w-1/3 bg-black/30 rounded-xl p-6 border border-white/10">
+                     <h4 className="text-sm font-semibold text-white mb-4">Risk Probability</h4>
                      <div className="space-y-4">
                         <div>
                           <div className="flex justify-between text-xs mb-1">
-                            <span className="font-medium text-slate-700">Non-Demented</span>
-                            <span className="text-slate-500">10%</span>
+                            <span className="font-medium text-slate-300">Alzheimer's Probability</span>
+                            <span className={`font-bold ${result.classification === 'Negative' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {result.confidence}%
+                            </span>
                           </div>
-                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-slate-400 rounded-full" style={{ width: '10%' }}></div>
+                          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                                result.classification === 'Negative' ? 'bg-emerald-500' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+                              }`} 
+                              style={{ width: `${result.confidence}%` }}
+                            ></div>
                           </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="font-medium text-slate-900">Very Mild</span>
-                            <span className="text-brand-600 font-bold">88.5%</span>
-                          </div>
-                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-600 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" style={{ width: '88.5%' }}></div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="font-medium text-slate-700">Mild</span>
-                            <span className="text-slate-500">1.5%</span>
-                          </div>
-                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-slate-400 rounded-full" style={{ width: '1.5%' }}></div>
-                          </div>
+                          <p className="text-[10px] text-slate-500 mt-2 text-right">
+                            Threshold: 50%
+                          </p>
                         </div>
                      </div>
                   </div>
