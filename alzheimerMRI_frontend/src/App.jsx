@@ -17,9 +17,253 @@ import {
   Brain, 
   Activity, 
   Upload,
-  CheckCircle,
-  Loader2
+  Loader2,
+  Save,
+  RotateCcw
 } from 'lucide-react';
+
+const resolveApiBaseUrl = () => {
+  // In development, use Vite proxy to avoid CORS preflight failures.
+  if (import.meta.env.DEV) return '';
+  return (import.meta.env.REACT_APP_API_URL || '').trim().replace(/\/+$/, '');
+};
+
+const postClinicalPrediction = async (payload) => {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const endpoints = [
+    `${apiBaseUrl}/predict/clinical`,
+    `${apiBaseUrl}/predict/clinical/`
+  ];
+
+  let lastResponse = null;
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    lastResponse = response;
+    if (response.status !== 405) return response;
+  }
+
+  return lastResponse;
+};
+
+const postMriImage = async (mriFile) => {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const endpoints = [
+    `${apiBaseUrl}/predict/MRIImage`,
+    `${apiBaseUrl}/predict/MRIImage/`
+  ];
+
+  const formData = new FormData();
+  formData.append('file', mriFile);
+
+  let lastResponse = null;
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    });
+
+    lastResponse = response;
+    if (response.status !== 405) return response;
+  }
+
+  return lastResponse;
+};
+
+const downloadElementScreenshot = async (element, filename) => {
+  if (!element) throw new Error('Result card element not found.');
+
+  const rect = element.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  const dpr = Math.max(window.devicePixelRatio || 1, 1);
+
+  const cloneWithInlineStyles = (sourceNode) => {
+    const cloned = sourceNode.cloneNode(false);
+    if (sourceNode.nodeType === Node.ELEMENT_NODE) {
+      const sourceEl = sourceNode;
+      const clonedEl = cloned;
+      const computed = window.getComputedStyle(sourceEl);
+      const styleText = Array.from(computed)
+        .map((prop) => `${prop}:${computed.getPropertyValue(prop)};`)
+        .join('');
+      clonedEl.setAttribute('style', styleText);
+    }
+
+    sourceNode.childNodes.forEach((child) => {
+      cloned.appendChild(cloneWithInlineStyles(child));
+    });
+
+    return cloned;
+  };
+
+  const clonedNode = cloneWithInlineStyles(element);
+  if (clonedNode.nodeType === Node.ELEMENT_NODE) {
+    clonedNode.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    clonedNode.style.margin = '0';
+    clonedNode.style.width = `${width}px`;
+    clonedNode.style.height = `${height}px`;
+  }
+
+  const serializedNode = new XMLSerializer().serializeToString(clonedNode);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <foreignObject width="100%" height="100%">${serializedNode}</foreignObject>
+  </svg>`;
+  const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Unable to render screenshot image.'));
+    img.src = svgDataUrl;
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(width * dpr);
+  canvas.height = Math.ceil(height * dpr);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context is unavailable.');
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+
+  const link = document.createElement('a');
+  link.download = filename;
+  const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+  if (pngBlob) {
+    const downloadUrl = URL.createObjectURL(pngBlob);
+    link.href = downloadUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+    return;
+  }
+
+  // Fallback for browsers where toBlob may return null.
+  link.href = canvas.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+const normalizePercent = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 0 && n <= 1) return n * 100;
+  return n;
+};
+
+const parseMriResult = (data = {}) => {
+  const probabilitySource = data.probability ?? data.confidence ?? data.score ?? data.prob;
+  let confidenceValue = normalizePercent(probabilitySource);
+
+  let classification = data.diagnosis
+    || data.classification
+    || data.label
+    || data.result
+    || data.predicted_class
+    || data.class_name
+    || (typeof data.prediction === 'string' ? data.prediction : '');
+
+  if ((!classification || !String(classification).trim()) && data.probabilities && typeof data.probabilities === 'object') {
+    const ranked = Object.entries(data.probabilities)
+      .map(([name, value]) => [name, normalizePercent(value)])
+      .filter(([, value]) => Number.isFinite(value))
+      .sort((a, b) => b[1] - a[1]);
+
+    if (ranked.length > 0) {
+      classification = ranked[0][0];
+      if (!Number.isFinite(confidenceValue)) {
+        confidenceValue = ranked[0][1];
+      }
+    }
+  }
+
+  const finalClassification = String(classification || 'Predicted').trim();
+  const normalizedLabel = finalClassification.toLowerCase().replace(/[\s_-]/g, '');
+  const includesAny = (arr) => arr.some((kw) => normalizedLabel.includes(kw));
+
+  let severity = 'neutral';
+  if (includesAny(['moderatedemented', 'moderate'])) {
+    severity = 'moderate';
+  } else if (includesAny(['milddemented']) && !includesAny(['verymilddemented'])) {
+    severity = 'mild';
+  } else if (includesAny(['verymilddemented', 'verymild'])) {
+    severity = 'very_mild';
+  } else if (includesAny(['nondemented', 'non-demented', 'non', 'normal', 'healthy', 'negative'])) {
+    severity = 'non';
+  } else if (Number.isFinite(confidenceValue)) {
+    severity = confidenceValue >= 50 ? 'mild' : 'non';
+  }
+
+  const confidence = Number.isFinite(confidenceValue) ? confidenceValue.toFixed(1) : '--';
+  const explanation = severity === 'moderate'
+    ? `MRI pattern analysis indicates a high-risk imaging pattern consistent with moderate dementia (${confidence}%). This requires timely specialist follow-up and comprehensive clinical correlation.`
+    : severity === 'mild' || severity === 'very_mild'
+      ? `MRI pattern analysis indicates early-to-intermediate dementia-related imaging change (${confidence}%). Clinical follow-up and structured cognitive reassessment are recommended.`
+      : severity === 'non'
+        ? `MRI pattern analysis indicates a low-risk pattern without clear dementia-level structural change (${confidence}%). Continue routine monitoring and reassessment if symptoms evolve.`
+      : `MRI analysis completed. The model identified "${finalClassification}". Please combine this imaging result with clinical assessment for final interpretation.`;
+
+  return {
+    classification: finalClassification,
+    confidence,
+    confidenceValue: Number.isFinite(confidenceValue) ? confidenceValue : null,
+    severity,
+    explanation
+  };
+};
+
+const getMriSeverityStyles = (severity) => {
+  if (severity === 'non') {
+    return {
+      badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      text: 'text-emerald-400',
+      bar: 'bg-emerald-500',
+      icon: 'text-emerald-400'
+    };
+  }
+  if (severity === 'very_mild') {
+    return {
+      badge: 'bg-lime-500/20 text-lime-300 border-lime-500/30',
+      text: 'text-lime-400',
+      bar: 'bg-lime-500',
+      icon: 'text-lime-400'
+    };
+  }
+  if (severity === 'mild') {
+    return {
+      badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      text: 'text-amber-400',
+      bar: 'bg-amber-500',
+      icon: 'text-amber-400'
+    };
+  }
+  if (severity === 'moderate') {
+    return {
+      badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      text: 'text-rose-400',
+      bar: 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]',
+      icon: 'text-rose-400'
+    };
+  }
+  return {
+    badge: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+    text: 'text-slate-300',
+    bar: 'bg-slate-400',
+    icon: 'text-slate-300'
+  };
+};
 
 function App() {
   const [stepData, setStepData] = useState({
@@ -31,14 +275,28 @@ function App() {
   });
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
+  const [mriResult, setMriResult] = useState(null);
   const [stepperStep, setStepperStep] = useState(1);
   const [mriFile, setMriFile] = useState(null);
+  const [uploadingMri, setUploadingMri] = useState(false);
+  const [uploadStatusType, setUploadStatusType] = useState('success');
   const [uploadStatus, setUploadStatus] = useState('');
+  const [savingResult, setSavingResult] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [saveStatusType, setSaveStatusType] = useState('success');
+  const [savingMriResult, setSavingMriResult] = useState(false);
+  const [mriSaveStatus, setMriSaveStatus] = useState('');
+  const [mriSaveStatusType, setMriSaveStatusType] = useState('success');
   const [stepperCardHeight, setStepperCardHeight] = useState(0);
   
   const awarenessRef = useRef(null);
   const inputSectionRef = useRef(null);
   const stepperCardRef = useRef(null);
+  const resultCardRef = useRef(null);
+  const resultSectionRef = useRef(null);
+  const mriResultCardRef = useRef(null);
+  const mriResultSectionRef = useRef(null);
+  const mriInputRef = useRef(null);
 
   const scrollToAwareness = () => {
     awarenessRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -58,13 +316,44 @@ function App() {
   const handleMriFileChange = (e) => {
     const selectedFile = e.target.files?.[0] ?? null;
     setMriFile(selectedFile);
+    setMriResult(null);
     setUploadStatus('');
+    setUploadStatusType('success');
   };
 
-  const handleMriUploadSubmit = (e) => {
+  const handleMriUploadSubmit = async (e) => {
     e.preventDefault();
     if (!mriFile) return;
-    setUploadStatus('MRI image added successfully.');
+
+    setUploadingMri(true);
+    setUploadStatus('');
+
+    try {
+      const response = await postMriImage(mriFile);
+
+      if (!response?.ok) {
+        throw new Error(`Upload failed with status ${response?.status ?? 'unknown'}`);
+      }
+      const responseData = await response.json().catch(() => ({}));
+      const parsedMriResult = parseMriResult(responseData);
+      setMriResult(parsedMriResult);
+      setMriSaveStatus('');
+      setMriSaveStatusType('success');
+
+      if (mriInputRef.current) {
+        mriInputRef.current.value = '';
+      }
+      setMriFile(null);
+      setUploadStatusType('success');
+      setUploadStatus('MRI image uploaded and analyzed successfully.');
+    } catch (error) {
+      console.error('Error uploading MRI image:', error);
+      setMriResult(null);
+      setUploadStatusType('error');
+      setUploadStatus('Failed to upload MRI image. Please try again.');
+    } finally {
+      setUploadingMri(false);
+    }
   };
 
   const handleAnalyze = async () => {
@@ -80,12 +369,7 @@ function App() {
     };
 
     try {
-      const apiUrl = import.meta.env.REACT_APP_API_URL || '';
-      const response = await fetch(`${apiUrl}/predict/clinical`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const response = await postClinicalPrediction(payload);
 
       if (!response.ok) throw new Error('Network response was not ok');
 
@@ -104,6 +388,8 @@ function App() {
           : "The analysis indicates a low likelihood of Alzheimer's based on the provided clinical metrics. Regular monitoring is advised.",
         severity: isPositive ? 'high' : 'low'
       });
+      setSaveStatus('');
+      setSaveStatusType('success');
     } catch (error) {
       console.error('Error analyzing data:', error);
       alert('Failed to connect to analysis server. Please try again.');
@@ -114,6 +400,69 @@ function App() {
 
   const isAllStepsEmpty = Object.values(stepData).every(value => !value.trim());
   const isAnalyzeDisabled = stepperStep === 5 && isAllStepsEmpty;
+  const normalizedClassification = (result?.classification || '').toLowerCase();
+  const isNegativeResult = normalizedClassification === 'negative';
+  const isPositiveResult = normalizedClassification === 'positive';
+  const detailedExplanation = isPositiveResult
+    ? `The current model output indicates an elevated likelihood of Alzheimer's-related cognitive impairment (${result?.confidence ?? '--'}%). This result should be treated as a clinical risk signal rather than a standalone diagnosis. We recommend arranging a specialist consultation for a full cognitive workup, medication review, and follow-up imaging and lab evaluation as needed.`
+    : isNegativeResult
+      ? `The current model output indicates a lower likelihood of Alzheimer's-related cognitive impairment (${result?.confidence ?? '--'}%). This is not a definitive exclusion of disease. If memory decline, executive dysfunction, or behavioral changes persist, continue routine monitoring and consider repeat assessment with formal neurocognitive testing and clinician follow-up.`
+      : result?.explanation || 'Model output is available. Please review with a qualified clinician for final interpretation.';
+  const mriSeverityStyles = getMriSeverityStyles(mriResult?.severity);
+
+  const handleSaveResult = async () => {
+    if (!resultCardRef.current) return;
+
+    setSavingResult(true);
+    setSaveStatus('');
+    setSaveStatusType('success');
+
+    try {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      await downloadElementScreenshot(resultCardRef.current, `clinical-result-${ts}.png`);
+      setSaveStatusType('success');
+      setSaveStatus('Result card screenshot is ready for download.');
+    } catch (error) {
+      console.error('Error saving result screenshot:', error);
+      setSaveStatusType('error');
+      setSaveStatus('Failed to save result screenshot. Please try again.');
+    } finally {
+      setSavingResult(false);
+    }
+  };
+
+  const handleRetest = () => {
+    setResult(null);
+    setSaveStatus('');
+    setSaveStatusType('success');
+  };
+
+  const handleSaveMriResult = async () => {
+    if (!mriResultCardRef.current) return;
+
+    setSavingMriResult(true);
+    setMriSaveStatus('');
+    setMriSaveStatusType('success');
+
+    try {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      await downloadElementScreenshot(mriResultCardRef.current, `mri-result-${ts}.png`);
+      setMriSaveStatusType('success');
+      setMriSaveStatus('Result card screenshot is ready for download.');
+    } catch (error) {
+      console.error('Error saving MRI result screenshot:', error);
+      setMriSaveStatusType('error');
+      setMriSaveStatus('Failed to save result screenshot. Please try again.');
+    } finally {
+      setSavingMriResult(false);
+    }
+  };
+
+  const handleMriRetest = () => {
+    setMriResult(null);
+    setMriSaveStatus('');
+    setMriSaveStatusType('success');
+  };
 
   useEffect(() => {
     const node = stepperCardRef.current;
@@ -130,6 +479,26 @@ function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [stepperStep, analyzing]);
+
+  useEffect(() => {
+    if (!result) return;
+
+    const scrollId = window.requestAnimationFrame(() => {
+      resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => window.cancelAnimationFrame(scrollId);
+  }, [result]);
+
+  useEffect(() => {
+    if (!mriResult) return;
+
+    const scrollId = window.requestAnimationFrame(() => {
+      mriResultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => window.cancelAnimationFrame(scrollId);
+  }, [mriResult]);
 
   return (
     <div className="min-h-screen bg-black text-slate-50 selection:bg-brand-500/30">
@@ -258,36 +627,36 @@ function App() {
                       easing="elastic"
                       containerClassName="translate-x-[-20%] translate-y-[-12%] max-[768px]:translate-x-[8%] max-[768px]:translate-y-[8%] max-[768px]:scale-[0.72] max-[480px]:translate-x-[16%] max-[480px]:translate-y-[16%] max-[480px]:scale-[0.56]"
                     >
-                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-cyan-400/30 shadow-[0_0_40px_rgba(34,211,238,0.15)] hover:border-cyan-400 hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]">
-                        <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">NonDemented</p>
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-emerald-400/30 shadow-[0_0_40px_rgba(52,211,153,0.15)] hover:border-emerald-400 hover:shadow-[0_0_60px_rgba(52,211,153,0.6)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">NonDemented</p>
                         <img
                           src={nonImg}
                           alt="NonDemented MRI sample"
-                          className="mt-3 h-56 w-full rounded-lg object-cover border border-cyan-300/20"
-                        />
-                      </Card>
-                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-emerald-400/30 shadow-[0_0_40px_rgba(52,211,153,0.14)] hover:border-emerald-400 hover:shadow-[0_0_60px_rgba(52,211,153,0.6)]">
-                        <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">ModerateDemented</p>
-                        <img
-                          src={moderateImg}
-                          alt="ModerateDemented MRI sample"
                           className="mt-3 h-56 w-full rounded-lg object-cover border border-emerald-300/20"
                         />
                       </Card>
-                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-violet-400/30 shadow-[0_0_40px_rgba(167,139,250,0.14)] hover:border-violet-400 hover:shadow-[0_0_60px_rgba(167,139,250,0.6)]">
-                        <p className="text-xs uppercase tracking-[0.18em] text-violet-300/80">MildDemented</p>
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-rose-400/30 shadow-[0_0_40px_rgba(251,113,133,0.14)] hover:border-rose-400 hover:shadow-[0_0_60px_rgba(251,113,133,0.6)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-rose-300/80">ModerateDemented</p>
                         <img
-                          src={mildImg}
-                          alt="MildDemented MRI sample"
-                          className="mt-3 h-56 w-full rounded-lg object-cover border border-violet-300/20"
+                          src={moderateImg}
+                          alt="ModerateDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-rose-300/20"
                         />
                       </Card>
                       <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-amber-400/30 shadow-[0_0_40px_rgba(251,191,36,0.14)] hover:border-amber-400 hover:shadow-[0_0_60px_rgba(251,191,36,0.6)]">
-                        <p className="text-xs uppercase tracking-[0.18em] text-amber-300/80">VeryMildDemented</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-amber-300/80">MildDemented</p>
+                        <img
+                          src={mildImg}
+                          alt="MildDemented MRI sample"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-amber-300/20"
+                        />
+                      </Card>
+                      <Card customClass="rounded-xl border p-6 bg-slate-950/95 border-lime-400/30 shadow-[0_0_40px_rgba(163,230,53,0.14)] hover:border-lime-400 hover:shadow-[0_0_60px_rgba(163,230,53,0.6)]">
+                        <p className="text-xs uppercase tracking-[0.18em] text-lime-300/80">VeryMildDemented</p>
                         <img
                           src={veryMildImg}
                           alt="VeryMildDemented MRI sample"
-                          className="mt-3 h-56 w-full rounded-lg object-cover border border-amber-300/20"
+                          className="mt-3 h-56 w-full rounded-lg object-cover border border-lime-300/20"
                         />
                       </Card>
                     </CardSwap>
@@ -409,7 +778,7 @@ function App() {
                   >
                   <Step>
                     <div className="space-y-2 pt-1">
-                      <label className="block text-sm font-medium text-slate-300 mb-0">FunctionalAssessment</label>
+                      <label className="block text-sm font-medium text-slate-300 mb-0">Functional Assessment</label>
                       <p className="text-xs text-slate-500 leading-snug">Evaluates higher-level daily function, including planning, task execution, and independent living ability.</p>
                       <input
                         type="text"
@@ -435,7 +804,7 @@ function App() {
                   </Step>
                   <Step>
                     <div className="space-y-2 pt-1">
-                      <label className="block text-sm font-medium text-slate-300 mb-0">MemoryComplaints</label>
+                      <label className="block text-sm font-medium text-slate-300 mb-0">Memory Complaints</label>
                       <p className="text-xs text-slate-500 leading-snug">Captures subjective memory concerns reported by the patient or caregiver in routine cognitive observation.</p>
                       <input
                         type="text"
@@ -461,7 +830,7 @@ function App() {
                   </Step>
                   <Step>
                     <div className="space-y-2 pt-1">
-                      <label className="block text-sm font-medium text-slate-300 mb-0">BehavioralProblems</label>
+                      <label className="block text-sm font-medium text-slate-300 mb-0">Behavioral Problems</label>
                       <p className="text-xs text-slate-500 leading-snug">Tracks neuropsychiatric symptoms such as agitation, mood changes, irritability, or behavior instability.</p>
                       <input
                         type="text"
@@ -486,6 +855,7 @@ function App() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-1">MRI Image File</label>
                       <input
+                        ref={mriInputRef}
                         type="file"
                         accept="image/*,.dcm"
                         onChange={handleMriFileChange}
@@ -493,25 +863,20 @@ function App() {
                       />
                     </div>
 
-                    {mriFile && (
-                      <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 flex items-center gap-2">
-                        <CheckCircle size={16} className="text-emerald-300 shrink-0" />
-                        <p className="text-xs text-emerald-200">
-                          {mriFile.name} ({(mriFile.size / 1024 / 1024).toFixed(2)} MB)
-                        </p>
-                      </div>
-                    )}
-
                     <button
                       type="submit"
-                      disabled={!mriFile}
-                      className="w-full flex items-center justify-center gap-2 rounded-full bg-[#5227FF] py-2.5 text-sm font-medium text-white transition hover:bg-[#6340FF] active:bg-[#3F17D8] disabled:bg-slate-500 disabled:cursor-not-allowed"
+                      disabled={!mriFile || uploadingMri}
+                      className="mt-2 w-full flex items-center justify-center gap-2 rounded-full bg-[#5227FF] py-2.5 text-sm font-medium text-white transition hover:bg-[#6340FF] active:bg-[#3F17D8] disabled:bg-slate-500 disabled:cursor-not-allowed"
                     >
-                      <Upload size={15} />
-                      Upload MRI
+                      {uploadingMri ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                      {uploadingMri ? 'Uploading...' : 'Upload MRI'}
                     </button>
 
-                    {uploadStatus && <p className="text-xs text-emerald-300">{uploadStatus}</p>}
+                    {uploadStatus && (
+                      <p className={`text-xs ${uploadStatusType === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                        {uploadStatus}
+                      </p>
+                    )}
                   </form>
                 </div>
               </div>
@@ -520,20 +885,103 @@ function App() {
         </div>
 
         <div className="max-w-5xl mx-auto px-6 space-y-16">
-        {/* Result Section */}        {result && (
-          <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="bg-white/[0.16] backdrop-blur-sm rounded-3xl shadow-xl overflow-hidden border border-white/10">
+        {/* MRI Result Section */}        {mriResult && (
+          <section
+            ref={mriResultSectionRef}
+            className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 lg:max-w-[920px] lg:mx-auto"
+          >
+            <div ref={mriResultCardRef} className="bg-white/[0.16] backdrop-blur-sm rounded-3xl shadow-xl overflow-hidden border border-white/10">
               <div className="p-8 md:p-10">
-                <div className="flex flex-col md:flex-row gap-8 items-start">
-                  
-                  <div className="flex-1 space-y-6">
-                    <div>
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-6 md:flex-row md:items-start">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">MRI Analysis Result</h3>
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">{mriResult.classification}</h2>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${mriSeverityStyles.badge}`}>
+                          MRI
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-full md:w-[280px] pt-1 md:pt-0">
+                      <h4 className="text-sm font-semibold text-white mb-4">Risk Probability</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-medium text-slate-300">Imaging Probability</span>
+                            <span className={`font-bold ${mriSeverityStyles.text}`}>
+                              {mriResult.confidence}%
+                            </span>
+                          </div>
+                          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-1000 ease-out ${mriSeverityStyles.bar}`}
+                              style={{ width: `${mriResult.confidence}%` }}
+                            ></div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-2 text-right">
+                            Threshold: 50%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-black/30 rounded-xl border border-white/10">
+                    <div className="flex gap-3">
+                      <Brain className={`shrink-0 mt-1 ${mriSeverityStyles.icon}`} size={20} />
+                      <p className="text-slate-300 leading-relaxed">
+                        {mriResult.explanation}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleSaveMriResult}
+                disabled={savingMriResult}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#5227FF] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#6340FF] active:bg-[#3F17D8] disabled:bg-slate-500 disabled:cursor-not-allowed"
+              >
+                {savingMriResult ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {savingMriResult ? 'Saving...' : 'Save Result'}
+              </button>
+              <button
+                type="button"
+                onClick={handleMriRetest}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              >
+                <RotateCcw size={15} />
+                Test Again
+              </button>
+            </div>
+            {mriSaveStatus && (
+              <p className={`mt-2 text-xs text-right ${mriSaveStatusType === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {mriSaveStatus}
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Result Section */}        {result && (
+          <section
+            ref={resultSectionRef}
+            className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 lg:max-w-[920px] lg:mx-auto"
+          >
+            <div ref={resultCardRef} className="bg-white/[0.16] backdrop-blur-sm rounded-3xl shadow-xl overflow-hidden border border-white/10">
+              <div className="p-8 md:p-10">
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-6 md:flex-row md:items-start">
+                    <div className="flex-1">
                       <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Clinical Assessment Result</h3>
                       <div className="flex items-center gap-3">
-                        <h2 className="text-3xl font-bold text-white">{result.classification}</h2>
+                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">{result.classification}</h2>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                          result.classification === 'Negative' 
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                          isNegativeResult
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                             : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
                         }`}>
                           Diagnosis
@@ -541,31 +989,21 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="p-4 bg-black/30 rounded-xl border border-white/10">
-                      <div className="flex gap-3">
-                        <Brain className={`shrink-0 mt-1 ${result.classification === 'Negative' ? 'text-emerald-400' : 'text-rose-400'}`} size={20} />
-                        <p className="text-slate-300 leading-relaxed">
-                          {result.explanation}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full md:w-1/3 bg-black/30 rounded-xl p-6 border border-white/10">
-                     <h4 className="text-sm font-semibold text-white mb-4">Risk Probability</h4>
-                     <div className="space-y-4">
+                    <div className="w-full md:w-[280px] pt-1 md:pt-0">
+                      <h4 className="text-sm font-semibold text-white mb-4">Risk Probability</h4>
+                      <div className="space-y-4">
                         <div>
                           <div className="flex justify-between text-xs mb-1">
                             <span className="font-medium text-slate-300">Alzheimer's Probability</span>
-                            <span className={`font-bold ${result.classification === 'Negative' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`font-bold ${isNegativeResult ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {result.confidence}%
                             </span>
                           </div>
                           <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                result.classification === 'Negative' ? 'bg-emerald-500' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
-                              }`} 
+                                isNegativeResult ? 'bg-emerald-500' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+                              }`}
                               style={{ width: `${result.confidence}%` }}
                             ></div>
                           </div>
@@ -573,12 +1011,45 @@ function App() {
                             Threshold: 50%
                           </p>
                         </div>
-                     </div>
+                      </div>
+                    </div>
                   </div>
 
+                  <div className="p-4 bg-black/30 rounded-xl border border-white/10">
+                    <div className="flex gap-3">
+                      <Brain className={`shrink-0 mt-1 ${isNegativeResult ? 'text-emerald-400' : 'text-rose-400'}`} size={20} />
+                      <p className="text-slate-300 leading-relaxed">
+                        {detailedExplanation}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleSaveResult}
+                disabled={savingResult}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#5227FF] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#6340FF] active:bg-[#3F17D8] disabled:bg-slate-500 disabled:cursor-not-allowed"
+              >
+                {savingResult ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {savingResult ? 'Saving...' : 'Save Result'}
+              </button>
+              <button
+                type="button"
+                onClick={handleRetest}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              >
+                <RotateCcw size={15} />
+                Test Again
+              </button>
+            </div>
+            {saveStatus && (
+              <p className={`mt-2 text-xs text-right ${saveStatusType === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {saveStatus}
+              </p>
+            )}
           </section>
         )}
 
