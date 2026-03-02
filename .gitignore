@@ -26,3 +26,7 @@ MRI Dataset/Augmented_Alzheimer_Model.h5
 
 # models
 /MRI Dataset/models
+FastAPIServer/alzheimer_xception_model.keras.zip
+FastAPIServer/model.weights.h5
+/FastAPIServer/tmp_extract
+/FileTuning/local_models
