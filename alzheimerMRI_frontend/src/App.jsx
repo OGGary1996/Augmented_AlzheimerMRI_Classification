@@ -7,6 +7,7 @@ import CountUp from './CountUp';
 import Orb from './Orb';
 import CardSwap, { Card } from './CardSwap';
 import Stepper, { Step } from './Stepper';
+import ChatbotPanel from './ChatbotPanel';
 
 import mildImg from './assets/MildDemented/0a0a0acd-8bd8-4b79-b724-cc5711e83bc7.jpg';
 import moderateImg from './assets/ModerateDemented/0a0d37fb-adeb-4e0e-8bc8-624cd70fc6e7.jpg';
@@ -1053,6 +1054,7 @@ function App() {
           </section>
         )}
 
+          <ChatbotPanel />
         </div>
       </main>
 
