@@ -1,20 +1,21 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+import io
+import sys
+import traceback
+from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-import zipfile
-from pathlib import Path
-import sys
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-import io
+from fastapi import FastAPI, File, UploadFile
 from PIL import Image
-from fastapi import File, UploadFile
+from tensorflow.keras.models import load_model, model_from_json
+from tensorflow.keras.preprocessing import image
 
+from ClinicalData import ClinicalData
+
+# ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
 
-# Load the clinical model
+# ── Load clinical model ─────────────────────────────────────────────────────
 try:
     model_path = Path(__file__).parent.parent / "Clinical Dataset" / "xgb_tunned_clinical_model.joblib"
     print(f"Loading model from: {model_path}", file=sys.stderr)
@@ -23,18 +24,16 @@ try:
     print(f"Model loaded successfully: {type(clinical_model)}", file=sys.stderr)
 except Exception as e:
     print(f"Error loading model: {e}", file=sys.stderr)
-    import traceback
     traceback.print_exc()
     raise
 
-# Load the image model from config and weights if .keras file is not present
+# ── Load image model ────────────────────────────────────────────────────────
 try:
-    from tensorflow.keras.models import model_from_json
-    fastapi_dir = Path(__file__).parent.parent / "FastAPIServer"
+    fastapi_dir = Path(__file__).parent
     keras_file = fastapi_dir / "alzheimer_xception_model.keras"
-    config_file = fastapi_dir / "config.json"
+    config_file = fastapi_dir / "tmp_extract" / "config.json"
     weights_file = fastapi_dir / "model.weights.h5"
-    metadata_file = fastapi_dir / "metadata.json"
+    metadata_file = fastapi_dir / "tmp_extract" / "metadata.json"
     if keras_file.exists():
         print(f"Loading image model from: {keras_file}", file=sys.stderr)
         image_model = load_model(keras_file)
@@ -50,16 +49,10 @@ try:
         raise FileNotFoundError("No .keras file or model config/weights found in FastAPIServer directory.")
 except Exception as e:
     print(f"Error loading image model: {e}", file=sys.stderr)
-    import traceback
     traceback.print_exc()
     raise
 
-class ClinicalData(BaseModel):
-    FunctionalAssessment: float
-    ADL: float
-    MemoryComplaints: int
-    MMSE: float
-    BehavioralProblems: int
+# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
@@ -116,6 +109,5 @@ async def predict_mri_image(file: UploadFile = File(...)):
         }
     except Exception as e:
         print(f"Error processing image: {e}", file=sys.stderr)
-        import traceback
         traceback.print_exc()
         return {"error": "Failed to process the image."}
