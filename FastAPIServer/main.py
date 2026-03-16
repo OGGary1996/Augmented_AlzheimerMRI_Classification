@@ -11,6 +11,7 @@ from tensorflow.keras.models import load_model, model_from_json
 from tensorflow.keras.preprocessing import image
 
 from ClinicalData import ClinicalData
+from Chatbot import ask as chatbot_ask, ChatQuery
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -111,3 +112,13 @@ async def predict_mri_image(file: UploadFile = File(...)):
         print(f"Error processing image: {e}", file=sys.stderr)
         traceback.print_exc()
         return {"error": "Failed to process the image."}
+
+
+@app.post("/chatbot")
+def chatbot(data: ChatQuery):
+    """
+    Ask a question about Alzheimer's disease.
+    Uses a RAG pipeline over curated PDF documents.
+    """
+    result = chatbot_ask(data.question)
+    return result

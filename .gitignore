@@ -30,3 +30,4 @@ FastAPIServer/alzheimer_xception_model.keras.zip
 FastAPIServer/model.weights.h5
 /FastAPIServer/tmp_extract
 /FileTuning/local_models
+/FastAPIServer/local_models
