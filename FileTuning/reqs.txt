@@ -9,3 +9,4 @@ chainlit
 torch 
 huggingface_hub
 langchain_community
+langchain-huggingface

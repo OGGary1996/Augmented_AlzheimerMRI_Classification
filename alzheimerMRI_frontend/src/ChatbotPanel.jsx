@@ -11,6 +11,7 @@ import {
   UserRound,
   X
 } from 'lucide-react';
+import { postChatbotQuestion } from './api';
 
 const quickPrompts = [
   'What does a Moderate Demented MRI result usually imply?',
@@ -24,69 +25,13 @@ const initialMessages = [
     id: 'intro',
     role: 'assistant',
     content:
-      'I can help explain MRI classifications, clinical metrics, and next-step questions in plain language. This is a frontend prototype, so replies are locally simulated for now.',
+      'I can help explain MRI classifications, clinical metrics, and next-step questions in plain language using the Alzheimer knowledge base behind the FastAPI chatbot.',
     timestamp: 'Now'
   }
 ];
 
 const formatTime = (date = new Date()) =>
   date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-const buildAssistantReply = (question) => {
-  const normalized = question.toLowerCase();
-
-  if (normalized.includes('moderate')) {
-    return {
-      headline: 'Moderate Demented MRI pattern',
-      body:
-        'This usually signals a stronger structural-change pattern than very-mild or mild categories. It should be treated as a prompt for timely specialist review, correlation with symptoms, and a broader cognitive workup rather than as a standalone diagnosis.',
-      cues: ['Compare with symptom timeline', 'Confirm with clinician review', 'Discuss medication and support planning']
-    };
-  }
-
-  if (normalized.includes('mmse') || normalized.includes('adl')) {
-    return {
-      headline: 'Clinical scores in plain language',
-      body:
-        'MMSE is a short cognitive screening score covering memory, orientation, and attention. ADL reflects how independently someone manages daily routines such as dressing, eating, or hygiene. Looking at both together helps estimate how symptoms affect real life.',
-      cues: ['Ask what score change is meaningful', 'Track function over time', 'Pair with caregiver observations']
-    };
-  }
-
-  if (
-    normalized.includes('urgent')
-    || normalized.includes('warning')
-    || normalized.includes('emergency')
-  ) {
-    return {
-      headline: 'Potential escalation signs',
-      body:
-        'Urgent evaluation is usually appropriate if there is rapid mental-status change, new confusion, sudden gait decline, recurrent falls, acute behavioral disturbance, severe dehydration, or inability to manage basic safety. Those patterns may reflect more than gradual dementia progression.',
-      cues: ['Document symptom onset', 'Note medication changes', 'Escalate same day if safety is affected']
-    };
-  }
-
-  if (
-    normalized.includes('doctor')
-    || normalized.includes('neurologist')
-    || normalized.includes('follow-up')
-    || normalized.includes('question')
-  ) {
-    return {
-      headline: 'Good follow-up questions',
-      body:
-        'Bring a short symptom timeline, recent test results, and specific examples of memory, behavior, and function changes. Ask what the likely differential is, what testing should come next, and what should be monitored over the next 3 to 6 months.',
-      cues: ['What findings are most concerning?', 'Which next tests change management?', 'What home-monitoring signs matter most?']
-    };
-  }
-
-  return {
-    headline: 'General guidance',
-    body:
-      'For the first frontend version, I am returning a structured local response. The final integration can later route this same prompt to your chatbot backend and preserve the exact UI shell, streaming behavior, and message history.',
-    cues: ['Keep answers concise', 'Surface medical disclaimers', 'Add backend API when ready']
-  };
-};
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
@@ -100,7 +45,7 @@ function ChatMessage({ message }) {
       )}
 
       <div
-        className={`max-w-[86%] rounded-[28px] border px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.22)] ${
+        className={`min-w-0 max-w-[86%] rounded-[28px] border px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.22)] ${
           isAssistant
             ? 'border-white/10 bg-white/[0.08] text-slate-100'
             : 'border-fuchsia-300/20 bg-[linear-gradient(135deg,rgba(232,121,249,0.22),rgba(59,130,246,0.18))] text-white'
@@ -109,7 +54,9 @@ function ChatMessage({ message }) {
         {message.headline && (
           <p className="mb-1 text-sm font-semibold tracking-wide text-white">{message.headline}</p>
         )}
-        <p className="text-sm leading-6 text-slate-200">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-200">
+          {message.content}
+        </p>
 
         {Array.isArray(message.cues) && message.cues.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -119,6 +66,19 @@ function ChatMessage({ message }) {
                 className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-medium tracking-wide text-slate-300"
               >
                 {cue}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {Array.isArray(message.sources) && message.sources.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {message.sources.map((source) => (
+              <span
+                key={source}
+                className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-cyan-100"
+              >
+                {source}
               </span>
             ))}
           </div>
@@ -176,7 +136,7 @@ export default function ChatbotPanel() {
     [messages]
   );
 
-  const submitPrompt = (rawPrompt) => {
+  const submitPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
     if (!trimmed || isTyping) return;
     const nextUserId = `user-${messageIdRef.current++}`;
@@ -192,26 +152,59 @@ export default function ChatbotPanel() {
     setDraft('');
     setIsTyping(true);
 
-    window.setTimeout(() => {
-      const simulated = buildAssistantReply(trimmed);
+    try {
+      const response = await postChatbotQuestion(trimmed);
+      let payload = null;
+
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        const detail = payload?.detail || payload?.error || 'Chatbot request failed.';
+        throw new Error(detail);
+      }
+
       const nextAssistantId = `assistant-${messageIdRef.current++}`;
+      const answer = typeof payload?.answer === 'string' && payload.answer.trim()
+        ? payload.answer.trim()
+        : 'The chatbot returned an empty response.';
 
       setMessages((prev) => [
         ...prev,
         {
           id: nextAssistantId,
           role: 'assistant',
-          content: simulated.body,
-          headline: simulated.headline,
-          cues: simulated.cues,
+          headline: 'Knowledge-base answer',
+          content: answer,
+          sources: Array.isArray(payload?.sources) ? payload.sources : [],
           timestamp: formatTime()
         }
       ]);
+    } catch (error) {
+      const nextAssistantId = `assistant-${messageIdRef.current++}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextAssistantId,
+          role: 'assistant',
+          headline: 'Chatbot unavailable',
+          content:
+            error instanceof Error
+              ? error.message
+              : 'The chatbot request failed. Confirm the FastAPI server is running and reachable.',
+          cues: ['Start FastAPI on port 8000', 'Check Vite proxy or REACT_APP_API_URL', 'Verify /chatbot returns JSON'],
+          timestamp: formatTime()
+        }
+      ]);
+    } finally {
       if (!isOpenRef.current && hasOpenedRef.current) {
         setUnreadCount((count) => count + 1);
       }
       setIsTyping(false);
-    }, 900);
+    }
   };
 
   const handleSubmit = (event) => {
@@ -294,7 +287,7 @@ export default function ChatbotPanel() {
 
             <div
               ref={messageViewportRef}
-              className="min-h-[180px] flex-1 space-y-4 overflow-y-auto bg-black/20 px-4 py-4"
+              className="min-h-[180px] min-w-0 flex-1 space-y-4 overflow-y-auto bg-black/20 px-4 py-4"
             >
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />

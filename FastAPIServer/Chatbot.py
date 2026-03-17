@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -42,6 +43,35 @@ def set_custom_prompt():
     )
 
 
+def clean_answer_text(answer: str) -> str:
+    """Collapse repeated sentences that small local models sometimes emit."""
+    normalized_answer = re.sub(r"\s+", " ", answer or "").strip()
+    if not normalized_answer:
+        return ""
+
+    sentence_pattern = r"[^.!?]+[.!?]?"
+    sentences = [segment.strip() for segment in re.findall(sentence_pattern, normalized_answer) if segment.strip()]
+
+    if not sentences:
+        return normalized_answer
+
+    deduped_sentences = []
+    seen = set()
+    for sentence in sentences:
+        dedupe_key = re.sub(r"\s+", " ", sentence).strip().lower().rstrip(".!?")
+        if dedupe_key and dedupe_key not in seen:
+            deduped_sentences.append(sentence)
+            seen.add(dedupe_key)
+
+    cleaned = " ".join(deduped_sentences).strip()
+    if cleaned and cleaned[-1] not in ".!?":
+        terminal_match = re.search(r"^(.+[.!?])(?:\s+[^.!?]*)?$", cleaned)
+        if terminal_match:
+            cleaned = terminal_match.group(1).strip()
+
+    return cleaned
+
+
 def load_llm():
     model_id = os.getenv("LLM_MODEL_ID", "HuggingFaceTB/SmolLM2-360M-Instruct")
     local_llm_path = os.getenv("LOCAL_LLM_PATH", _default_local_llm_path(model_id))
@@ -71,8 +101,12 @@ def load_llm():
         "text-generation",
         model=model,
         tokenizer=tokenizer,
-        max_new_tokens=120,
+        max_new_tokens=160,
         do_sample=False,
+        repetition_penalty=1.15,
+        no_repeat_ngram_size=3,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.eos_token_id,
         return_full_text=False,
     )
 
@@ -112,7 +146,7 @@ print("Chatbot QA chain loaded.", file=sys.stderr)
 def ask(query: str) -> dict:
     """Run a query against the QA chain and return answer + sources."""
     res = qa_chain.invoke({"query": query})
-    answer = res["result"]
+    answer = clean_answer_text(res["result"])
     sources = res.get("source_documents", [])
 
     citation_list = []

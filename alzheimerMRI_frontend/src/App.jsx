@@ -8,6 +8,7 @@ import Orb from './Orb';
 import CardSwap, { Card } from './CardSwap';
 import Stepper, { Step } from './Stepper';
 import ChatbotPanel from './ChatbotPanel';
+import { postClinicalPrediction, postMriImage } from './api';
 
 import mildImg from './assets/MildDemented/0a0a0acd-8bd8-4b79-b724-cc5711e83bc7.jpg';
 import moderateImg from './assets/ModerateDemented/0a0d37fb-adeb-4e0e-8bc8-624cd70fc6e7.jpg';
@@ -22,60 +23,6 @@ import {
   Save,
   RotateCcw
 } from 'lucide-react';
-
-const resolveApiBaseUrl = () => {
-  // In development, use Vite proxy to avoid CORS preflight failures.
-  if (import.meta.env.DEV) return '';
-  return (import.meta.env.REACT_APP_API_URL || '').trim().replace(/\/+$/, '');
-};
-
-const postClinicalPrediction = async (payload) => {
-  const apiBaseUrl = resolveApiBaseUrl();
-  const endpoints = [
-    `${apiBaseUrl}/predict/clinical`,
-    `${apiBaseUrl}/predict/clinical/`
-  ];
-
-  let lastResponse = null;
-
-  for (const endpoint of endpoints) {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    lastResponse = response;
-    if (response.status !== 405) return response;
-  }
-
-  return lastResponse;
-};
-
-const postMriImage = async (mriFile) => {
-  const apiBaseUrl = resolveApiBaseUrl();
-  const endpoints = [
-    `${apiBaseUrl}/predict/MRIImage`,
-    `${apiBaseUrl}/predict/MRIImage/`
-  ];
-
-  const formData = new FormData();
-  formData.append('file', mriFile);
-
-  let lastResponse = null;
-
-  for (const endpoint of endpoints) {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      body: formData
-    });
-
-    lastResponse = response;
-    if (response.status !== 405) return response;
-  }
-
-  return lastResponse;
-};
 
 const downloadElementScreenshot = async (element, filename) => {
   if (!element) throw new Error('Result card element not found.');

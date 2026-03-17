@@ -1,4 +1,5 @@
 import os
+import re
 
 try:
     from dotenv import load_dotenv
@@ -41,6 +42,35 @@ def set_custom_prompt():
                             input_variables=['context', 'question'])
     return prompt
 
+
+def clean_answer_text(answer: str) -> str:
+    """Collapse repeated sentences that small local models sometimes emit."""
+    normalized_answer = re.sub(r"\s+", " ", answer or "").strip()
+    if not normalized_answer:
+        return ""
+
+    sentence_pattern = r"[^.!?]+[.!?]?"
+    sentences = [segment.strip() for segment in re.findall(sentence_pattern, normalized_answer) if segment.strip()]
+
+    if not sentences:
+        return normalized_answer
+
+    deduped_sentences = []
+    seen = set()
+    for sentence in sentences:
+        dedupe_key = re.sub(r"\s+", " ", sentence).strip().lower().rstrip('.!?')
+        if dedupe_key and dedupe_key not in seen:
+            deduped_sentences.append(sentence)
+            seen.add(dedupe_key)
+
+    cleaned = ' '.join(deduped_sentences).strip()
+    if cleaned and cleaned[-1] not in '.!?':
+        terminal_match = re.search(r'^(.+[.!?])(?:\s+[^.!?]*)?$', cleaned)
+        if terminal_match:
+            cleaned = terminal_match.group(1).strip()
+
+    return cleaned
+
 #Retrieval QA Chain
 def retrieval_qa_chain(llm, prompt, db):
     qa_chain = RetrievalQA.from_chain_type(llm=llm,
@@ -81,8 +111,12 @@ def load_llm():
         'text-generation',
         model=model,
         tokenizer=tokenizer,
-        max_new_tokens=120,
+        max_new_tokens=160,
         do_sample=False,
+        repetition_penalty=1.15,
+        no_repeat_ngram_size=3,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.eos_token_id,
         return_full_text=False
     )
 
@@ -146,7 +180,7 @@ if hasattr(cl, 'on_chat_start') and hasattr(cl, 'on_message'):
             cl.user_session.set("chain", chain)
 
         res = await cl.make_async(chain.invoke)({"query": message.content})
-        answer = res["result"]
+        answer = clean_answer_text(res["result"])
         sources = res["source_documents"]
         
         if sources:
