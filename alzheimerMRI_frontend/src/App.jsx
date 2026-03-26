@@ -111,6 +111,19 @@ const normalizePercent = (value) => {
   return n;
 };
 
+const toImageDataUrl = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('data:image/')) return trimmed;
+  return `data:image/png;base64,${trimmed}`;
+};
+
+const formatExplanationTypeLabel = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  if (value === 'grad_cam_plus_plus') return 'GRAD CAM ++';
+  return value.replace(/_/g, ' ').toUpperCase();
+};
+
 const parseMriResult = (data = {}) => {
   const probabilitySource = data.probability ?? data.confidence ?? data.score ?? data.prob;
   let confidenceValue = normalizePercent(probabilitySource);
@@ -163,12 +176,21 @@ const parseMriResult = (data = {}) => {
         ? `MRI pattern analysis indicates a low-risk pattern without clear dementia-level structural change (${confidence}%). Continue routine monitoring and reassessment if symptoms evolve.`
       : `MRI analysis completed. The model identified "${finalClassification}". Please combine this imaging result with clinical assessment for final interpretation.`;
 
+  const originalImageSrc = toImageDataUrl(data.original_image_base64);
+  const heatmapImageSrc = toImageDataUrl(data.heatmap_image_base64);
+  const overlayImageSrc = toImageDataUrl(data.overlay_image_base64) || (severity === 'non' ? originalImageSrc : null);
+
   return {
     classification: finalClassification,
     confidence,
     confidenceValue: Number.isFinite(confidenceValue) ? confidenceValue : null,
     severity,
-    explanation
+    explanation,
+    attentionAvailable: Boolean(data.attention_available),
+    explanationType: formatExplanationTypeLabel(data.explanation_type),
+    originalImageSrc,
+    heatmapImageSrc,
+    overlayImageSrc
   };
 };
 
@@ -884,6 +906,83 @@ function App() {
                       </p>
                     </div>
                   </div>
+
+                  {(mriResult.overlayImageSrc || mriResult.originalImageSrc || mriResult.heatmapImageSrc || mriResult.severity === 'non') && (
+                    <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Attention Overlay</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {mriResult.attentionAvailable
+                                ? 'Model-highlighted MRI regions associated with the current classification.'
+                                : 'No abnormal attention map was generated. The original MRI is shown for reference.'}
+                            </p>
+                          </div>
+                          {mriResult.explanationType && (
+                            <span className="whitespace-nowrap rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                              {mriResult.explanationType}
+                            </span>
+                          )}
+                        </div>
+                        {mriResult.overlayImageSrc ? (
+                          <div className="flex-1">
+                            <img
+                              src={mriResult.overlayImageSrc}
+                              alt={`${mriResult.classification} MRI attention overlay`}
+                              className="h-full min-h-[280px] w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex min-h-[280px] flex-1 items-center justify-center px-6 text-center text-sm text-slate-500">
+                            No highlighted MRI overlay was returned for this scan.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        {mriResult.originalImageSrc && (
+                          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                            <div className="border-b border-white/10 px-4 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Original MRI</p>
+                            </div>
+                            <div className="flex-1">
+                              <img
+                                src={mriResult.originalImageSrc}
+                                alt="Original uploaded MRI"
+                                className="h-full min-h-[190px] w-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {mriResult.heatmapImageSrc && (
+                          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                            <div className="border-b border-white/10 px-4 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Heatmap View</p>
+                            </div>
+                            <div className="flex-1">
+                              <img
+                                src={mriResult.heatmapImageSrc}
+                                alt="MRI attention heatmap"
+                                className="h-full min-h-[190px] w-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {!mriResult.heatmapImageSrc && (
+                          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                            <div className="border-b border-white/10 px-4 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Heatmap View</p>
+                            </div>
+                            <div className="flex min-h-[190px] flex-1 items-center justify-center px-6 text-center text-sm text-slate-500">
+                              No heatmap is shown for the current MRI result.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

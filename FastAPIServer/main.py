@@ -1,17 +1,21 @@
-import io
 import sys
 import traceback
 from pathlib import Path
 import joblib
-import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, UploadFile
-from PIL import Image
 from tensorflow.keras.models import load_model, model_from_json
-from tensorflow.keras.preprocessing import image
 
 from ClinicalData import ClinicalData
 from Chatbot import ask as chatbot_ask, ChatQuery
+from mri_explain import (
+    EXPLAINABLE_CLASSES,
+    compute_gradcam_heatmap,
+    encode_image_base64,
+    predict_mri,
+    preprocess_mri_bytes,
+    render_gradcam_images,
+)
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -34,7 +38,6 @@ try:
     keras_file = fastapi_dir / "alzheimer_xception_model.keras"
     config_file = fastapi_dir / "tmp_extract" / "config.json"
     weights_file = fastapi_dir / "model.weights.h5"
-    metadata_file = fastapi_dir / "tmp_extract" / "metadata.json"
     if keras_file.exists():
         print(f"Loading image model from: {keras_file}", file=sys.stderr)
         image_model = load_model(keras_file)
@@ -89,25 +92,34 @@ def predict_clinical(data: ClinicalData):
 async def predict_mri_image(file: UploadFile = File(...)):
     # Predict Alzheimer's diagnosis based on MRI image. Returns Category of the diagnosis (MildDemented, ModerateDemented, NonDemented, VeryMildDemented).
     try:
-        # Read the uploaded file
         contents = await file.read()
-        img = Image.open(io.BytesIO(contents)).convert('RGB')  # Use RGB for Xception
-        img = img.resize((128, 128))  # Resize to match model input
-        img_array = image.img_to_array(img) / 255.0  # Normalize pixel values
-        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-        
-        # Make prediction
-        probs = image_model.predict(img_array)[0]
-        class_names = ["MildDemented", "ModerateDemented", "NonDemented", "VeryMildDemented"]
-        predicted_index = np.argmax(probs)
-        predicted_class = class_names[predicted_index]
-        confidence = float(probs[predicted_index])
-        
-        return {
-            "predicted_class": predicted_class,
-            "confidence": confidence,
-            "all_probabilities": dict(zip(class_names, map(float, probs)))
+        original_image, model_input = preprocess_mri_bytes(contents)
+        prediction = predict_mri(image_model, model_input)
+
+        response = {
+            "predicted_class": prediction["predicted_class"],
+            "confidence": prediction["confidence"],
+            "all_probabilities": prediction["all_probabilities"],
+            "explanation_type": None,
+            "attention_available": False,
+            "original_image_base64": encode_image_base64(original_image.convert("RGB")),
         }
+
+        if prediction["predicted_class"] in EXPLAINABLE_CLASSES:
+            heatmap = compute_gradcam_heatmap(
+                image_model,
+                model_input,
+                prediction["predicted_index"],
+            )
+            response.update(
+                {
+                    "explanation_type": "grad_cam_plus_plus",
+                    "attention_available": True,
+                    **render_gradcam_images(original_image, heatmap),
+                }
+            )
+
+        return response
     except Exception as e:
         print(f"Error processing image: {e}", file=sys.stderr)
         traceback.print_exc()
