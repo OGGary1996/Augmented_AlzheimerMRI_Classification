@@ -113,7 +113,7 @@ async def predict_mri_image(file: UploadFile = File(...)):
             )
             response.update(
                 {
-                    "explanation_type": "grad_cam_plus_plus",
+                    "explanation_type": "grad_cam",
                     "attention_available": True,
                     **render_gradcam_images(original_image, heatmap),
                 }
