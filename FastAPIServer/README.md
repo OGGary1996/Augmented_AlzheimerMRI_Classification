@@ -1,41 +1,75 @@
-# Alzheimer's Classification API
+# FastAPI Backend
 
-FastAPI server for predicting Alzheimer's diagnosis based on clinical data.
+This directory contains the main backend of the project. It provides three core capabilities:
 
-## Installation
+1. Clinical-feature prediction
+2. MRI image classification with Grad-CAM explainability
+3. Alzheimer’s disease question answering over a local vector store
 
-Install the required dependencies:
+## Directory Contents
+
+- `main.py`: FastAPI application entry point
+- `ClinicalData.py`: Request schema for clinical prediction
+- `Chatbot.py`: RAG chain construction and chatbot logic
+- `mri_explain.py`: MRI preprocessing, prediction, and heatmap generation
+- `alzheimer_xception_model.keras`: MRI classification model
+- `vectorstore/db_faiss/`: Vector store used by the QA system
+- `local_models/`: Locally cached Hugging Face generation models
+
+## Runtime Requirements
+
+The backend depends on the following local resources:
+
+- `../Clinical Dataset/xgb_tunned_clinical_model.joblib`
+- `./alzheimer_xception_model.keras`
+- `./vectorstore/db_faiss/`
+
+Optional environment variables:
+
+- `HF_TOKEN`: Used if Hugging Face access requires authentication
+- `LLM_MODEL_ID`: Overrides the default generation model, which is `HuggingFaceTB/SmolLM2-360M-Instruct`
+- `LOCAL_LLM_PATH`: Overrides the local cache directory for the generation model
+
+Notes:
+
+- `Chatbot.py` builds the QA chain at import time.
+- If models such as `sentence-transformers/all-MiniLM-L6-v2` are not already cached locally, first startup may require network access.
+- With the current import structure, the backend is more reliable when started from this directory rather than imported as a package from the repository root.
+
+## Install Dependencies
+
+Install the shared project dependencies from the repository root:
+
 ```bash
-pip install fastapi uvicorn joblib xgboost pandas numpy scikit-learn
+pip install -r ../requirements.txt
 ```
 
-## Running the Server
+## Start the Service
 
-From the FastAPIServer directory:
+Run from inside `FastAPIServer/`:
+
 ```bash
 uvicorn main:app --reload
 ```
 
-Or from the project root:
-```bash
-uvicorn FastAPIServer.main:app --reload
-```
+Default service URLs:
 
-The server will start at `http://127.0.0.1:8000`
-
-## API Documentation
-
-Once the server is running, visit:
-- Swagger UI: `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000`
+- Swagger: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
-## Endpoints
+## API Summary
 
-### POST /predict/clinical
+### `GET /`
 
-Predicts Alzheimer's diagnosis based on clinical features.
+Basic health check and welcome response.
 
-**Request Body:**
+### `POST /predict/clinical`
+
+Predicts Alzheimer’s risk based on clinical features.
+
+Request body:
+
 ```json
 {
   "FunctionalAssessment": 5.5,
@@ -46,7 +80,8 @@ Predicts Alzheimer's diagnosis based on clinical features.
 }
 ```
 
-**Response:**
+Example response:
+
 ```json
 {
   "prediction": 0,
@@ -55,23 +90,39 @@ Predicts Alzheimer's diagnosis based on clinical features.
 }
 ```
 
-- `prediction`: 0 (Negative) or 1 (Positive)
-- `diagnosis`: "Negative" or "Positive"
-- `probability`: Probability of positive diagnosis (0-1)
+### `POST /predict/MRIImage`
 
-### POST /chatbot
+Uploads an MRI image and returns the predicted class plus optional Grad-CAM explanation outputs.
 
-Ask a question about Alzheimer's disease through the RAG chatbot.
-The chatbot retrieves relevant context from the indexed PDF knowledge base and returns a concise answer with source citations.
+Form field:
 
-**Request Body:**
+- `file`: MRI image file
+
+Response fields include:
+
+- `predicted_class`
+- `confidence`
+- `all_probabilities`
+- `attention_available`
+- `explanation_type`
+- `original_image_base64`
+- `heatmap_image_base64`
+- `overlay_image_base64`
+
+### `POST /chatbot`
+
+Answers Alzheimer’s-related questions using the local PDF-based knowledge base.
+
+Request body:
+
 ```json
 {
   "question": "What are common early symptoms of Alzheimer's disease?"
 }
 ```
 
-**Response:**
+Example response:
+
 ```json
 {
   "answer": "Common early symptoms include memory loss that disrupts daily life, difficulty completing familiar tasks, and confusion with time or place.",
@@ -82,12 +133,10 @@ The chatbot retrieves relevant context from the indexed PDF knowledge base and r
 }
 ```
 
-- `answer`: Chatbot response generated from retrieved document context
-- `sources`: Source document citations used to support the response
+## Debug Examples
 
-## Testing the API
+### Clinical Prediction
 
-### Using curl:
 ```bash
 curl -X POST "http://127.0.0.1:8000/predict/clinical" \
   -H "Content-Type: application/json" \
@@ -100,7 +149,8 @@ curl -X POST "http://127.0.0.1:8000/predict/clinical" \
   }'
 ```
 
-### Chatbot with curl:
+### Chatbot Endpoint
+
 ```bash
 curl -X POST "http://127.0.0.1:8000/chatbot" \
   -H "Content-Type: application/json" \
@@ -109,40 +159,9 @@ curl -X POST "http://127.0.0.1:8000/chatbot" \
   }'
 ```
 
-### Using Python:
-```python
-import requests
+## Important Notes
 
-url = "http://127.0.0.1:8000/predict/clinical"
-data = {
-    "FunctionalAssessment": 5.5,
-    "ADL": 4.2,
-    "MemoryComplaints": 1,
-    "MMSE": 28.5,
-    "BehavioralProblems": 0
-}
-
-response = requests.post(url, json=data)
-print(response.json())
-```
-
-### Chatbot with Python:
-```python
-import requests
-
-url = "http://127.0.0.1:8000/chatbot"
-data = {
-    "question": "What are common early symptoms of Alzheimer's disease?"
-}
-
-response = requests.post(url, json=data)
-print(response.json())
-```
-
-## Feature Descriptions
-
-- **FunctionalAssessment**: Functional assessment score (float)
-- **ADL**: Activities of Daily Living score (float)
-- **MemoryComplaints**: Memory complaints indicator (0 or 1)
-- **MMSE**: Mini-Mental State Examination score (float, typically 0-30)
-- **BehavioralProblems**: Behavioral problems indicator (0 or 1)
+- `UploadFile` requires `python-multipart`; otherwise the MRI upload endpoint will not work.
+- Loading the serialized clinical model requires `xgboost`.
+- The QA stack depends on LangChain, FAISS, transformers, and sentence-transformers.
+- If the required Hugging Face models are not cached and no network is available, import-time initialization may fail.

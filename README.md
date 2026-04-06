@@ -1,98 +1,183 @@
-# Project Environment Setup Guide
+# Augmented Alzheimer MRI Classification
 
-This project uses **pyenv-virtualenv** for dependency management.<br>
-If you are using a different tool like **conda or native venv**, precess is similar.<br>
-Please follow the steps below to set up your local development environment.
+This repository is a multi-module project for Alzheimer’s disease assistance, combining clinical-data classification, MRI image classification with explainability, and a document-based question answering system. The repository includes a FastAPI backend, a React frontend, training and analysis notebooks, and a standalone Chainlit RAG prototype.
 
-## 1. Prerequisites
-Ensure you have Python installed on your system (Version **3.10.15** or higher is recommended).
+## Project Overview
 
-## 2. Installation Steps
+The project currently provides three main capabilities:
 
-### Step 1: Create the Virtual Environment
-Open your terminal (Terminal / CMD) in the project root directory and run the following command to create a virtual environment:
-##### 1.1 Using `pyenv-virtualenv`
-If you prefer using `pyenv-virtualenv`, run:
-```bash
-pyenv virtualenv 3.10.15 project-env
-cd your/project/directory
-pyenv local project-env
+1. Clinical data classification
+It uses a trained clinical model to perform binary prediction from features such as `FunctionalAssessment`, `ADL`, `MemoryComplaints`, `MMSE`, and `BehavioralProblems`.
+
+2. MRI image classification and explanation
+The backend loads `FastAPIServer/alzheimer_xception_model.keras`, predicts the class of an uploaded MRI image, and generates Grad-CAM heatmaps and overlays for explainable classes.
+
+3. Alzheimer’s disease question answering
+It uses PDF documents, a FAISS vector store, Hugging Face embeddings, and a locally cached small language model to provide a concise RAG-based QA interface and a standalone prototype.
+
+## Repository Structure
+
+```text
+.
+├── README.md
+├── requirements.txt
+├── Clinical Dataset/
+│   ├── alzheimers_disease_data.csv
+│   └── xgb_tunned_clinical_model.joblib
+├── MRI Dataset/
+│   ├── *.ipynb
+│   ├── mri_data.csv
+│   └── original_split_manifest.csv
+├── dataset/
+│   ├── AugmentedAlzheimerDataset/
+│   ├── OriginalDataset/
+│   └── original_train_balanced_aug/
+├── FastAPIServer/
+│   ├── main.py
+│   ├── ClinicalData.py
+│   ├── Chatbot.py
+│   ├── mri_explain.py
+│   ├── alzheimer_xception_model.keras
+│   ├── vectorstore/
+│   └── README.md
+├── alzheimerMRI_frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── README.md
+└── FileTuning/
+    ├── model.py
+    ├── ingest.py
+    ├── reqs.txt
+    ├── data/
+    └── README.md
 ```
-#### 1.2 Using `venv` (built-in Python module)
+
+## Directory Guide
+
+- `FastAPIServer/`: Main backend for clinical prediction, MRI image prediction, and the RAG chatbot API.
+- `alzheimerMRI_frontend/`: Vite + React frontend with clinical input steps, MRI upload, result views, and chatbot panel.
+- `FileTuning/`: Standalone RAG prototype directory for isolated experimentation and vector store regeneration.
+- `Clinical Dataset/`: Clinical dataset files and the trained clinical model artifact.
+- `MRI Dataset/`: MRI preprocessing, training, and analysis notebooks and related intermediate data.
+- `dataset/`: MRI image dataset directory containing original and augmented classification data.
+
+## Submodule Documentation
+
+- Backend documentation: [FastAPIServer/README.md](./FastAPIServer/README.md)
+- Frontend documentation: [alzheimerMRI_frontend/README.md](./alzheimerMRI_frontend/README.md)
+- FileTuning prototype documentation: [FileTuning/README.md](./FileTuning/README.md)
+
+The root README is intended as the main entry point and project map. For module-specific run instructions, API details, and implementation notes, use the README inside each module directory.
+
+## Tech Stack
+
+### Python / ML
+
+- FastAPI
+- TensorFlow / Keras
+- scikit-learn
+- XGBoost
+- pandas / numpy / matplotlib / Pillow
+- LangChain + FAISS
+- transformers / sentence-transformers
+
+### Frontend
+
+- React 19
+- Vite
+- Tailwind CSS
+- lucide-react
+- motion / gsap / three / ogl
+
+## Quick Start
+
+### 1. Python Environment
+
+Python `3.10.15` or newer is recommended.
+
+Using `venv`:
+
 ```bash
-# macOS / Linux / Windows
 python3 -m venv .venv
 source .venv/bin/activate
-```
-##### 1.3 Using `conda`
-If you prefer using `conda`, run:
-```bash
-conda create --name project-env python=3.10.15
-conda activate project-env
-```
-
-### Step 2: Activate the Virtual Environment
-You must activate the environment before installing dependencies.
-##### 2.1 Using `pyenv-virtualenv`
-If you used `pyenv-virtualenv`, the environment should already be activated if you set the local version.
-```bash
-pyenv local project-env
-```
-##### 2.2 Using `venv`
-- **macOS / Linux:**
-  ```bash
-  source .venv/bin/activate
-  ```
-- **Windows (CMD):**
-  ```cmd
-  .venv\Scripts\activate.bat
-  ```
-- **Windows (PowerShell):**
-  ```powershell
-  .venv\Scripts\Activate.ps1
-  ```
-##### 2.3 Using `conda`
-```bash
-conda activate project-env
-```
-
-### Step 3: Install Dependencies
-With the virtual environment activated, install the required dependencies using `pip`:
-
-```bash
 pip install -r requirements.txt
 ```
-## 3. Maintenance requirements.txt
-If you install a new library (e.g., pip install requests), you must update the dependency list so teammates can sync:
-```bash
-pip freeze > requirements.txt
-```
 
-## 4. Deactivating the Virtual Environment
+If you use `pyenv-virtualenv` or `conda`, the workflow is equivalent as long as you install the root `requirements.txt`.
 
-When you are done working in the virtual environment, you can deactivate it by simply running:
+### 2. Frontend Environment
+
+Node.js LTS is recommended.
 
 ```bash
-deactivate # for venv and pyenv-virtualenv
-conda deactivate # for conda
+cd alzheimerMRI_frontend
+npm install
+npm run dev
 ```
-## 5. IDE setup (PyCharm example)
-To ensure PyCharm recognizes the libraries and provides code completion:
-1. Go to Settings (Windows/Linux) or Preferences (macOS) -> Project -> Python Interpreter.
-2. Click Add Interpreter -> Local Interpreter.
-3. Select Virtualenv Environment -> Check Existing.
-4. Set the path to the python executable inside the .venv folder in this project:
-- pyenv-virtualenv: .../.pyenv/versions/project-env/bin/python
-- conda: .../anaconda3/envs/project-env/bin/python
-- venv
-  - macOS/Linux: .../Project/.venv/bin/python
-  - Windows: ...\Project\.venv\Scripts\python.exe
 
-## 6. Troubleshooting (Windows)
-If you receive an error saying "running scripts is disabled on this system" when trying to activate:
-1. Open PowerShell as Administrator.
-2. Run the command:
-   ```powershell
-   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-   ```
-3. Try activating the environment again.
+### 3. Start the Backend
+
+The current backend code uses same-directory imports, so the recommended startup location is inside `FastAPIServer/`:
+
+```bash
+cd FastAPIServer
+uvicorn main:app --reload
+```
+
+After startup:
+
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+
+### 4. Run Frontend and Backend Together
+
+1. Install Python dependencies from the repository root: `pip install -r requirements.txt`
+2. Start FastAPI from `FastAPIServer/`
+3. Run `npm install && npm run dev` in `alzheimerMRI_frontend/`
+4. Open the frontend development URL, usually `http://localhost:5173`
+
+## Main APIs
+
+- `POST /predict/clinical`: Clinical feature prediction
+- `POST /predict/MRIImage`: MRI image prediction and heatmap generation
+- `POST /chatbot`: QA over the PDF-based knowledge base
+
+For detailed request and response examples, see [FastAPIServer/README.md](./FastAPIServer/README.md).
+
+## FileTuning Standalone Prototype
+
+The `FileTuning/` directory contains a standalone RAG QA prototype:
+
+```bash
+cd FileTuning
+pip install -r reqs.txt
+python ingest.py
+python -m chainlit run model.py --host 127.0.0.1 --port 8001
+```
+
+This directory is mainly used to:
+
+- regenerate the vector store
+- test the RAG QA pipeline independently
+- iterate on the chatbot prototype without affecting the main frontend/backend flow
+
+## Data and Model Artifacts
+
+- Clinical model file: `Clinical Dataset/xgb_tunned_clinical_model.joblib`
+- MRI model file: `FastAPIServer/alzheimer_xception_model.keras`
+- Main backend vector store: `FastAPIServer/vectorstore/db_faiss/`
+- Standalone prototype vector store: `FileTuning/vectorstore/db_faiss/`
+
+## Dependency Maintenance
+
+The root `requirements.txt` now serves as the main Python dependency list for the project, covering:
+
+- FastAPI backend runtime
+- core ML and explainability dependencies
+- common notebook analysis libraries
+- RAG dependencies used by the main backend
+
+`FileTuning/reqs.txt` remains a smaller dependency file for the standalone prototype so it can be installed separately.
+
+If new Python dependencies are added later, update the relevant dependency file instead of only installing them locally.

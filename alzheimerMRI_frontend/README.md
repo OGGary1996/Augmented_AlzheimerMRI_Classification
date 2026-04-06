@@ -1,61 +1,77 @@
 # AlzheimerMRI Frontend
 
-This is the frontend application for the Augmented Alzheimer MRI Classification project. It is a React application built with Vite and Tailwind CSS.
+This directory contains the web frontend for the project. It is built with React 19, Vite, and Tailwind CSS, and it provides the UI for clinical risk assessment, MRI image upload analysis, and chatbot access.
+
+## Features
+
+- Multi-step clinical metric input
+- Clinical classification result display
+- MRI image upload and result visualization
+- MRI heatmap and overlay display
+- Result card screenshot export
+- Integrated Alzheimer’s disease chatbot panel
 
 ## Tech Stack
 
--   **Framework:** [React](https://react.dev/)
--   **Build Tool:** [Vite](https://vitejs.dev/)
--   **Styling:** [Tailwind CSS](https://tailwindcss.com/)
--   **Animations & Graphics:** [Motion](https://motion.dev/), [Three.js](https://threejs.org/), [OGL](https://github.com/oframe/ogl)
+- React 19
+- Vite
+- Tailwind CSS
+- lucide-react
+- motion
+- gsap
+- three
+- ogl
 
+## Directory Guide
 
-## Getting Started
+- `src/App.jsx`: Main page and primary interaction flow
+- `src/api.js`: API request helpers for the FastAPI backend
+- `src/ChatbotPanel.jsx`: Chatbot panel component
+- `src/assets/`: Example MRI images and static assets
+- `public/`: Public asset directory
 
-Follow these instructions to set up and run the project locally.
+## Install
 
-### Prerequisites
+```bash
+npm install
+```
 
--   [Node.js](https://nodejs.org/) (Latest LTS version recommended)
--   npm (comes with Node.js)
-
-### Installation
-
-1.  Clone the repository (if you haven't already):
-    ```bash
-    git clone <repository-url>
-    cd alzheimerMRI_frontend
-    ```
-
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-### Running Locally
-
-To start the development server:
+## Local Development
 
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173` (or the port shown in your terminal).
+The development app is usually available at:
 
-### Building for Production
+- `http://localhost:5173`
 
-To create a production build:
+## Build and Lint
 
 ```bash
 npm run build
-```
-
-The output will be in the `dist` directory.
-
-### Linting
-
-To run the linter:
-
-```bash
 npm run lint
 ```
+
+## Backend Integration
+
+By default, the frontend calls the backend through relative paths:
+
+- `/predict/clinical`
+- `/predict/MRIImage`
+- `/chatbot`
+
+In production mode, `src/api.js` reads `REACT_APP_API_URL` as the backend base URL.
+
+If you want to set the backend URL explicitly, you can start the app with an environment variable, for example:
+
+```bash
+REACT_APP_API_URL=http://127.0.0.1:8000 npm run dev
+```
+
+## Development Notes
+
+- Make sure `FastAPIServer/` is running before testing the UI.
+- MRI upload depends on the backend `POST /predict/MRIImage` endpoint.
+- The chatbot panel depends on the backend `POST /chatbot` endpoint.
+- If the frontend builds correctly but requests fail, check backend startup location and port first.
