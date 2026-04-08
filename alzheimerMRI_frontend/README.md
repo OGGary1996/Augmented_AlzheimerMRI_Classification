@@ -61,12 +61,15 @@ By default, the frontend calls the backend through relative paths:
 - `/predict/MRIImage`
 - `/chatbot`
 
-In production mode, `src/api.js` reads `REACT_APP_API_URL` as the backend base URL.
+In production mode, `src/api.js` reads `REACT_APP_API_URL` as the clinical + MRI backend base URL.
+If the chatbot runs as a standalone service, set `REACT_APP_CHATBOT_API_URL` separately.
 
 If you want to set the backend URL explicitly, you can start the app with an environment variable, for example:
 
 ```bash
-REACT_APP_API_URL=http://127.0.0.1:8000 npm run dev
+REACT_APP_API_URL=http://127.0.0.1:8000 \
+REACT_APP_CHATBOT_API_URL=http://127.0.0.1:8001 \
+npm run dev
 ```
 
 ## Development Notes

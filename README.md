@@ -118,17 +118,28 @@ npm run dev
 
 ### 3. Start the Backend
 
-The current backend code uses same-directory imports, so the recommended startup location is inside `FastAPIServer/`:
+The current backend code uses same-directory imports, so the recommended startup location is inside `FastAPIServer/`.
+
+Clinical + MRI service:
 
 ```bash
 cd FastAPIServer
 uvicorn main:app --reload
 ```
 
+Standalone chatbot service:
+
+```bash
+cd FastAPIServer
+uvicorn chatbot_app:app --reload --port 8001
+```
+
 After startup:
 
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
+- Main service Swagger UI: `http://127.0.0.1:8000/docs`
+- Chatbot Swagger UI: `http://127.0.0.1:8001/docs`
+- Main service ReDoc: `http://127.0.0.1:8000/redoc`
+- Chatbot ReDoc: `http://127.0.0.1:8001/redoc`
 
 ### 4. Run Frontend and Backend Together
 

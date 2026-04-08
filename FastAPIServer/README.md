@@ -1,6 +1,6 @@
 # FastAPI Backend
 
-This directory contains the main backend of the project. It provides three core capabilities:
+This directory contains the backend services of the project. They provide three core capabilities:
 
 1. Clinical-feature prediction
 2. MRI image classification with Grad-CAM explainability
@@ -8,7 +8,8 @@ This directory contains the main backend of the project. It provides three core 
 
 ## Directory Contents
 
-- `main.py`: FastAPI application entry point
+- `main.py`: FastAPI application entry point for clinical + MRI services
+- `chatbot_app.py`: standalone FastAPI application entry point for the chatbot service
 - `ClinicalData.py`: Request schema for clinical prediction
 - `Chatbot.py`: RAG chain construction and chatbot logic
 - `mri_explain.py`: MRI preprocessing, prediction, and heatmap generation
@@ -44,19 +45,28 @@ Install the shared project dependencies from the repository root:
 pip install -r ../requirements.txt
 ```
 
-## Start the Service
+## Start the Services
 
-Run from inside `FastAPIServer/`:
+Run from inside `FastAPIServer/`.
+
+Clinical + MRI service:
 
 ```bash
 uvicorn main:app --reload
 ```
 
+Standalone chatbot service:
+
+```bash
+uvicorn chatbot_app:app --reload --port 8001
+```
+
 Default service URLs:
 
-- `http://127.0.0.1:8000`
-- Swagger: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
+- Clinical + MRI: `http://127.0.0.1:8000`
+- Chatbot: `http://127.0.0.1:8001`
+- Swagger: `http://127.0.0.1:8000/docs` and `http://127.0.0.1:8001/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc` and `http://127.0.0.1:8001/redoc`
 
 ## API Summary
 
@@ -112,6 +122,8 @@ Response fields include:
 ### `POST /chatbot`
 
 Answers Alzheimer’s-related questions using the local PDF-based knowledge base.
+
+This endpoint is served by `chatbot_app.py` on the standalone chatbot service.
 
 Request body:
 

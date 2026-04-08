@@ -3,6 +3,12 @@ const resolveApiBaseUrl = () => {
   return (import.meta.env.REACT_APP_API_URL || '').trim().replace(/\/+$/, '');
 };
 
+const resolveChatbotBaseUrl = () => {
+  const chatbotBaseUrl = (import.meta.env.REACT_APP_CHATBOT_API_URL || '').trim().replace(/\/+$/, '');
+  if (import.meta.env.DEV) return chatbotBaseUrl;
+  return chatbotBaseUrl || resolveApiBaseUrl();
+};
+
 const postJsonWithMethodFallback = async (paths, payload) => {
   let lastResponse = null;
 
@@ -32,7 +38,7 @@ export const postClinicalPrediction = async (payload) => {
 };
 
 export const postChatbotQuestion = async (question) => {
-  const apiBaseUrl = resolveApiBaseUrl();
+  const apiBaseUrl = resolveChatbotBaseUrl();
   return postJsonWithMethodFallback(
     [
       `${apiBaseUrl}/chatbot`,
@@ -67,4 +73,4 @@ export const postMriImage = async (mriFile) => {
   return lastResponse;
 };
 
-export { resolveApiBaseUrl };
+export { resolveApiBaseUrl, resolveChatbotBaseUrl };
