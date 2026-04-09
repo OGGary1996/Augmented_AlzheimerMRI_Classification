@@ -230,6 +230,11 @@ export default function ChatbotPanel() {
     setShowWelcomeBubble(false);
   };
 
+  const minimizeChat = () => {
+    setIsExpanded(false);
+    setIsOpen(false);
+  };
+
   return (
     <div
       className={`pointer-events-none fixed z-[70] transition-all duration-300 ease-out ${
@@ -239,12 +244,12 @@ export default function ChatbotPanel() {
       }`}
     >
       <div
-        className={`pointer-events-auto flex gap-3 ${
+        className={`pointer-events-none flex gap-3 ${
           isExpanded && isOpen ? 'h-full flex-col' : 'flex-col items-end'
         }`}
       >
         <div
-          className={`origin-bottom-right flex w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[30px] border bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.22),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(217,70,239,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.97),rgba(2,6,23,0.98))] shadow-[0_30px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl transition-all duration-300 ease-out ${
+          className={`pointer-events-auto origin-bottom-right flex w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[30px] border bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.22),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(217,70,239,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.97),rgba(2,6,23,0.98))] shadow-[0_30px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl transition-all duration-300 ease-out ${
             isOpen
               ? 'pointer-events-auto translate-y-0 scale-100 opacity-100 border-white/10'
               : 'pointer-events-none translate-y-4 scale-95 opacity-0 border-white/0'
@@ -275,7 +280,7 @@ export default function ChatbotPanel() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsOpen(false)}
+                    onClick={minimizeChat}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/20 text-slate-300 transition hover:border-white/20 hover:bg-black/30 hover:text-white"
                     aria-label="Minimize chat"
                   >
@@ -360,7 +365,7 @@ export default function ChatbotPanel() {
           <button
             type="button"
             onClick={toggleChat}
-            className="max-w-[280px] rounded-2xl border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] px-4 py-3 text-left shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/40"
+            className="pointer-events-auto max-w-[280px] rounded-2xl border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] px-4 py-3 text-left shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/40"
           >
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-300/12 text-cyan-100">
@@ -380,7 +385,7 @@ export default function ChatbotPanel() {
           <button
             type="button"
             onClick={toggleChat}
-            className="group relative flex items-center gap-3 rounded-full border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))] px-4 py-3 text-left shadow-[0_24px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/50 hover:shadow-[0_0_0_1px_rgba(34,211,238,0.18),0_0_36px_rgba(34,211,238,0.24),0_24px_60px_rgba(2,6,23,0.45)]"
+            className="pointer-events-auto group relative flex items-center gap-3 rounded-full border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))] px-4 py-3 text-left shadow-[0_24px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/50 hover:shadow-[0_0_0_1px_rgba(34,211,238,0.18),0_0_36px_rgba(34,211,238,0.24),0_24px_60px_rgba(2,6,23,0.45)]"
           >
             <span className="absolute inset-0 rounded-full bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(217,70,239,0.16))]" />
             <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#22d3ee,#d946ef)] text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.3)]">
