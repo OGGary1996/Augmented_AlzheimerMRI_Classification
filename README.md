@@ -20,7 +20,7 @@ It uses PDF documents, a FAISS vector store, Hugging Face embeddings, and a loca
 ```text
 .
 ├── README.md
-├── requirements.txt
+├── pyproject.toml
 ├── Clinical Dataset/
 │   ├── alzheimers_disease_data.csv
 │   └── xgb_tunned_clinical_model.joblib
@@ -33,6 +33,7 @@ It uses PDF documents, a FAISS vector store, Hugging Face embeddings, and a loca
 │   ├── OriginalDataset/
 │   └── original_train_balanced_aug/
 ├── FastAPIServer/
+│   ├── pyproject.toml
 │   ├── main.py
 │   ├── ClinicalData.py
 │   ├── Chatbot.py
@@ -48,7 +49,7 @@ It uses PDF documents, a FAISS vector store, Hugging Face embeddings, and a loca
 └── FileTuning/
     ├── model.py
     ├── ingest.py
-    ├── reqs.txt
+    ├── pyproject.toml
     ├── data/
     └── README.md
 ```
@@ -94,17 +95,23 @@ The root README is intended as the main entry point and project map. For module-
 
 ### 1. Python Environment
 
-Python `3.10.15` or newer is recommended.
+This repository now uses `pyenv` only to select the interpreter version and `uv` to manage project-local virtual environments.
 
-Using `venv`:
+At the repository root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+pyenv local 3.10.15
+uv sync
 ```
 
-If you use `pyenv-virtualenv` or `conda`, the workflow is equivalent as long as you install the root `requirements.txt`.
+This creates `.venv/` in the repository root from `pyproject.toml`.
+
+Important:
+
+- root `.venv/` is for repository-level notebooks, analysis scripts, and shared project tooling
+- `FastAPIServer/` has its own `pyproject.toml` and should use its own `FastAPIServer/.venv/`
+- `FileTuning/` has its own `pyproject.toml` and should use its own `FileTuning/.venv/`
+- do not point these directories at the same Python environment; let `uv` create one environment per project directory
 
 ### 2. Frontend Environment
 
@@ -118,20 +125,24 @@ npm run dev
 
 ### 3. Start the Backend
 
-The current backend code uses same-directory imports, so the recommended startup location is inside `FastAPIServer/`.
+`FastAPIServer/` is managed as its own Python module and should be synced from inside that directory.
 
 Clinical + MRI service:
 
 ```bash
 cd FastAPIServer
-uvicorn main:app --reload
+pyenv local 3.10.15
+uv sync
+uv run uvicorn main:app --reload
 ```
 
 Standalone chatbot service:
 
 ```bash
 cd FastAPIServer
-uvicorn chatbot_app:app --reload --port 8001
+pyenv local 3.10.15
+uv sync
+uv run uvicorn chatbot_app:app --reload --port 8001
 ```
 
 After startup:
@@ -143,8 +154,8 @@ After startup:
 
 ### 4. Run Frontend and Backend Together
 
-1. Install Python dependencies from the repository root: `pip install -r requirements.txt`
-2. Start FastAPI from `FastAPIServer/`
+1. Install repository-level Python dependencies from the repository root if you need notebooks or analysis tooling: `uv sync`
+2. Install backend dependencies inside `FastAPIServer/`: `cd FastAPIServer && uv sync`
 3. Run `npm install && npm run dev` in `alzheimerMRI_frontend/`
 4. Open the frontend development URL, usually `http://localhost:5173`
 
@@ -162,9 +173,10 @@ The `FileTuning/` directory contains a standalone RAG QA prototype:
 
 ```bash
 cd FileTuning
-pip install -r reqs.txt
-python ingest.py
-python -m chainlit run model.py --host 127.0.0.1 --port 8001
+pyenv local 3.10.15
+uv sync
+uv run python ingest.py
+uv run python -m chainlit run model.py --host 127.0.0.1 --port 8001
 ```
 
 This directory is mainly used to:
@@ -182,13 +194,12 @@ This directory is mainly used to:
 
 ## Dependency Maintenance
 
-The root `requirements.txt` now serves as the main Python dependency list for the project, covering:
+The root `pyproject.toml` now serves the repository-level environment, covering:
 
-- FastAPI backend runtime
 - core ML and explainability dependencies
 - common notebook analysis libraries
-- RAG dependencies used by the main backend
+- shared scripts run from the repository root
 
-`FileTuning/reqs.txt` remains a smaller dependency file for the standalone prototype so it can be installed separately.
+`FastAPIServer/pyproject.toml` defines the backend service environment separately, and `FileTuning/pyproject.toml` defines the standalone prototype environment separately.
 
-If new Python dependencies are added later, update the relevant dependency file instead of only installing them locally.
+If new Python dependencies are added later, update the relevant `pyproject.toml` instead of only installing them locally.

@@ -39,26 +39,27 @@ Notes:
 
 ## Install Dependencies
 
-Install the shared project dependencies from the repository root:
+Install the backend dependencies from inside `FastAPIServer/`:
 
 ```bash
-pip install -r ../requirements.txt
+pyenv local 3.10.15
+uv sync
 ```
 
 ## Start the Services
 
-Run from inside `FastAPIServer/`.
+Run from inside `FastAPIServer/` so `uv` resolves the backend's own `.venv/`.
 
 Clinical + MRI service:
 
 ```bash
-uvicorn main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 Standalone chatbot service:
 
 ```bash
-uvicorn chatbot_app:app --reload --port 8001
+uv run uvicorn chatbot_app:app --reload --port 8001
 ```
 
 Default service URLs:

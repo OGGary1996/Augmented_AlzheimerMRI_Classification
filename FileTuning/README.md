@@ -17,7 +17,7 @@ If you want the integrated product experience, use the main backend in `FastAPIS
 
 - `model.py`: Chainlit chatbot application and RAG pipeline
 - `ingest.py`: PDF ingestion script that builds the FAISS vector store
-- `reqs.txt`: Python dependencies for this standalone prototype
+- `pyproject.toml`: Python dependencies for this standalone prototype
 - `data/DATA.pdf`: Source document used to build the knowledge base
 - `chainlit.md`: Short quickstart notes for running the Chainlit app
 - `config.toml`: Local configuration for the prototype
@@ -49,7 +49,7 @@ The current implementation uses:
 
 - Python 3.10 or newer
 - Internet access for the first model download, unless the required models are already cached locally
-- A valid local environment with the dependencies from `reqs.txt`
+- A valid local environment with the dependencies from `pyproject.toml`
 
 Optional:
 
@@ -60,7 +60,8 @@ Optional:
 From inside `FileTuning/`:
 
 ```bash
-pip install -r reqs.txt
+pyenv local 3.10.15
+uv sync
 ```
 
 ## Build the Vector Store
@@ -68,7 +69,7 @@ pip install -r reqs.txt
 Before running the chatbot, create or refresh the vector store:
 
 ```bash
-python ingest.py
+uv run python ingest.py
 ```
 
 This reads `data/DATA.pdf` and writes the index under `vectorstore/db_faiss/`.
@@ -78,14 +79,14 @@ This reads `data/DATA.pdf` and writes the index under `vectorstore/db_faiss/`.
 Start the Chainlit app from inside `FileTuning/`:
 
 ```bash
-python -m chainlit run model.py --host 127.0.0.1 --port 8001
+uv run python -m chainlit run model.py --host 127.0.0.1 --port 8001
 ```
 
 Then open:
 
 - `http://127.0.0.1:8001`
 
-If `chainlit` is already available in your shell `PATH`, this also works:
+If `chainlit` is already available in your active `FileTuning/.venv`, this also works:
 
 ```bash
 chainlit run model.py --host 127.0.0.1 --port 8001
@@ -103,10 +104,10 @@ By default, the generation model is cached under `local_models/` inside this dir
 
 ## Typical Development Flow
 
-1. Install dependencies from `reqs.txt`
+1. Install dependencies with `uv sync`
 2. Update or replace `data/DATA.pdf` if the knowledge source changes
-3. Run `python ingest.py` to rebuild the vector store
-4. Start the app with `python -m chainlit run model.py --host 127.0.0.1 --port 8001`
+3. Run `uv run python ingest.py` to rebuild the vector store
+4. Start the app with `uv run python -m chainlit run model.py --host 127.0.0.1 --port 8001`
 5. Ask questions and iterate on retrieval, prompts, or model settings
 
 ## Notes and Limitations
