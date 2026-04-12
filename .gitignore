@@ -1,6 +1,12 @@
 # data
 /dataset
 
+# agents
+.codex
+.claude
+.gemini
+
+
 # python
 __pycache__/
 *.py[cod]
