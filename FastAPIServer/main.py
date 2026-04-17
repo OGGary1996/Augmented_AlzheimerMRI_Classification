@@ -1,9 +1,13 @@
+import os
 import sys
 import traceback
 from pathlib import Path
+
 import joblib
 import pandas as pd
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from tensorflow.keras.models import load_model, model_from_json
 
 from ClinicalData import ClinicalData
@@ -18,6 +22,18 @@ from mri_explain import (
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── Load clinical model ─────────────────────────────────────────────────────
 try:
@@ -123,3 +139,50 @@ async def predict_mri_image(file: UploadFile = File(...)):
         print(f"Error processing image: {e}", file=sys.stderr)
         traceback.print_exc()
         return {"error": "Failed to process the image."}
+
+
+# ── Chatbot ──────────────────────────────────────────────────────────────────
+chatbot_ask = None
+chatbot_import_error = None
+
+
+class ChatQuery(BaseModel):
+    question: str
+
+
+def get_chatbot_ask():
+    global chatbot_ask, chatbot_import_error
+
+    if chatbot_ask is not None:
+        return chatbot_ask
+
+    if chatbot_import_error is not None:
+        raise chatbot_import_error
+
+    try:
+        from Chatbot import ask as imported_chatbot_ask
+        chatbot_ask = imported_chatbot_ask
+        print("Chatbot module loaded successfully.", file=sys.stderr)
+        return chatbot_ask
+    except Exception as e:
+        chatbot_import_error = e
+        print(f"Chatbot module unavailable: {e}", file=sys.stderr)
+        traceback.print_exc()
+        raise
+
+
+@app.post("/chatbot")
+def chatbot(data: ChatQuery):
+    """
+    Ask a question about Alzheimer's disease.
+    Uses a RAG pipeline over curated PDF documents.
+    """
+    try:
+        chatbot_handler = get_chatbot_ask()
+    except Exception:
+        detail = "Chatbot service is unavailable because its ML dependencies failed to load."
+        if chatbot_import_error is not None:
+            detail = f"{detail} Root cause: {chatbot_import_error}"
+        raise HTTPException(status_code=503, detail=detail)
+
+    return chatbot_handler(data.question)
