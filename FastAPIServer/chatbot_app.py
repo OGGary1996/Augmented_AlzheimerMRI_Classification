@@ -51,7 +51,20 @@ def get_chatbot_ask():
 
 @app.get("/")
 def root():
-    return {"message": "Alzheimer's Chatbot API"}
+    return {
+        "message": "Alzheimer's Chatbot API",
+        "chatbot_ready": chatbot_ask is not None and chatbot_import_error is None,
+        "chatbot_import_error": str(chatbot_import_error) if chatbot_import_error else None,
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "chatbot_ready": chatbot_ask is not None and chatbot_import_error is None,
+        "chatbot_import_error": str(chatbot_import_error) if chatbot_import_error else None,
+    }
 
 
 @app.post("/chatbot")

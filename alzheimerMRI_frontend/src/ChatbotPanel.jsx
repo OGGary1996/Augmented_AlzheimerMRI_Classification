@@ -194,8 +194,8 @@ export default function ChatbotPanel() {
           content:
             error instanceof Error
               ? error.message
-              : 'The chatbot request failed. Confirm the FastAPI server is running and reachable.',
-          cues: ['Start FastAPI on port 8000', 'Check Vite proxy or REACT_APP_API_URL', 'Verify /chatbot returns JSON'],
+              : 'The chatbot request failed. Confirm the chatbot service is running and reachable.',
+          cues: ['Check the deployed Space logs', 'Verify the /chatbot endpoint returns JSON', 'Confirm the knowledge-base model finished loading'],
           timestamp: formatTime()
         }
       ]);
