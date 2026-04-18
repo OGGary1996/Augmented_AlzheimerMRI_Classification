@@ -22,7 +22,7 @@ app = FastAPI()
 
 # ── Load clinical model ─────────────────────────────────────────────────────
 try:
-    model_path = Path(__file__).parent.parent / "Clinical Dataset" / "xgb_tunned_clinical_model.joblib"
+    model_path = Path(__file__).parent / "xgb_tunned_clinical_model.joblib"
     print(f"Loading model from: {model_path}", file=sys.stderr)
     print(f"Model file exists: {model_path.exists()}", file=sys.stderr)
     clinical_model = joblib.load(model_path)
