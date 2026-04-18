@@ -1,9 +1,10 @@
 import sys
 import traceback
 from pathlib import Path
+
 import joblib
 import pandas as pd
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from tensorflow.keras.models import load_model, model_from_json
 
 from ClinicalData import ClinicalData
@@ -32,6 +33,9 @@ except Exception as e:
     raise
 
 # ── Load image model ────────────────────────────────────────────────────────
+image_model = None
+image_model_error = None
+
 try:
     fastapi_dir = Path(__file__).parent
     keras_file = fastapi_dir / "alzheimer_xception_model.keras"
@@ -53,13 +57,30 @@ try:
 except Exception as e:
     print(f"Error loading image model: {e}", file=sys.stderr)
     traceback.print_exc()
-    raise
+    image_model_error = str(e)
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
-    return {"message": "Alzheimer's Classification API"}
+    return {
+        "message": "Alzheimer's Classification API",
+        "services": {
+            "clinical": True,
+            "mri": image_model is not None,
+        },
+        "mri_model_error": image_model_error,
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "clinical_model_loaded": True,
+        "mri_model_loaded": image_model is not None,
+        "mri_model_error": image_model_error,
+    }
 
 @app.post("/predict/clinical")
 def predict_clinical(data: ClinicalData):
@@ -90,6 +111,12 @@ def predict_clinical(data: ClinicalData):
 @app.post("/predict/MRIImage")
 async def predict_mri_image(file: UploadFile = File(...)):
     # Predict Alzheimer's diagnosis based on MRI image. Returns Category of the diagnosis (MildDemented, ModerateDemented, NonDemented, VeryMildDemented).
+    if image_model is None:
+        detail = "MRI inference is unavailable because the MRI model file could not be loaded."
+        if image_model_error:
+            detail = f"{detail} Root cause: {image_model_error}"
+        raise HTTPException(status_code=503, detail=detail)
+
     try:
         contents = await file.read()
         original_image, model_input = preprocess_mri_bytes(contents)
@@ -122,4 +149,4 @@ async def predict_mri_image(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error processing image: {e}", file=sys.stderr)
         traceback.print_exc()
-        return {"error": "Failed to process the image."}
+        raise HTTPException(status_code=500, detail="Failed to process the image.")

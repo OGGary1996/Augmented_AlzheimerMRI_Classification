@@ -1,0 +1,23 @@
+.git
+.gitignore
+.idea
+.vscode
+.codex
+.gemini
+**/.DS_Store
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.venv
+**/node_modules
+**/dist
+**/dist-ssr
+**/*.log
+
+dataset
+MRI Dataset
+FileTuning
+
+FastAPIServer/local_models
+FastAPIServer/.venv
+alzheimerMRI_frontend/.env.production

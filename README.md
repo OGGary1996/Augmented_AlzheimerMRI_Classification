@@ -1,3 +1,13 @@
+---
+title: Alzheimer MRI Screening Demo
+emoji: 🧠
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Augmented Alzheimer MRI Classification
 
 This repository is a multi-module project for Alzheimer’s disease assistance, combining clinical-data classification, MRI image classification with explainability, and a document-based question answering system. The repository includes a FastAPI backend, a React frontend, training and analysis notebooks, and a standalone Chainlit RAG prototype.
@@ -203,3 +213,35 @@ The root `pyproject.toml` now serves the repository-level environment, covering:
 `FastAPIServer/pyproject.toml` defines the backend service environment separately, and `FileTuning/pyproject.toml` defines the standalone prototype environment separately.
 
 If new Python dependencies are added later, update the relevant `pyproject.toml` instead of only installing them locally.
+
+## Hugging Face Docker Space Deployment
+
+This repository can also be deployed as a single Hugging Face Docker Space while keeping the current three-module split:
+
+- frontend static site
+- `FastAPIServer/main.py` for clinical + MRI inference
+- `FastAPIServer/chatbot_app.py` for the chatbot API
+
+Inside the container:
+
+- nginx serves the built frontend on port `7860`
+- nginx proxies `/predict/*` to the clinical/MRI FastAPI service on port `8000`
+- nginx proxies `/chatbot` to the chatbot FastAPI service on port `8001`
+
+Deployment prerequisites:
+
+- `FastAPIServer/alzheimer_xception_model.keras` must be present in the repository or copied into the Space before build
+- the clinical model file at `Clinical Dataset/xgb_tunned_clinical_model.joblib` must remain available
+
+Relevant deployment files:
+
+- `Dockerfile`
+- `docker/nginx.conf`
+- `scripts/start-space.sh`
+- `.dockerignore`
+
+The MRI API now starts in a degraded mode when the MRI model file is missing. In that case:
+
+- the container can still boot
+- clinical prediction remains available
+- `/predict/MRIImage` returns HTTP `503` with the model-loading failure reason
