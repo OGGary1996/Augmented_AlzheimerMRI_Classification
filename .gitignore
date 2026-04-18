@@ -1,0 +1,53 @@
+# data
+/dataset
+
+# agents
+.codex
+.claude
+.gemini
+
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# env
+/.env
+/.venv
+/.python-version
+
+# os
+.DS_Store
+
+# ide
+.idea/
+.vscode/
+
+# jupyter
+.ipynb_checkpoints/
+/MRI Dataset/archive
+MRI Dataset/archive.zip
+MRI Dataset/Augmented_Alzheimer_Model.h5
+
+# models
+/MRI Dataset/models
+FastAPIServer/alzheimer_xception_model.keras.zip
+!FastAPIServer/alzheimer_xception_model.keras
+FastAPIServer/model.weights.h5
+/FastAPIServer/tmp_extract
+/FileTuning/local_models
+/FastAPIServer/local_models
+
+# hf-deploy branch
+FileTuning/
+MRI Dataset/
+pyproject.toml
+uv.lock
+Clinical Dataset/
+alzheimerMRI_frontend/.env.development
+alzheimerMRI_frontend/.env.production
+alzheimerMRI_frontend/README.md
+alzheimerMRI_frontend/screenshot-chromagrid.js
+FastAPIServer/README.md
+FastAPIServer/.python-version
