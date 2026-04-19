@@ -1,13 +1,3 @@
----
-title: Alzheimer MRI Screening Demo
-emoji: 🧠
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # Augmented Alzheimer MRI Classification
 
 This repository is a multi-module project for Alzheimer’s disease assistance, combining clinical-data classification, MRI image classification with explainability, and a document-based question answering system. The repository includes a FastAPI backend, a React frontend, training and analysis notebooks, and a standalone Chainlit RAG prototype.
@@ -231,7 +221,7 @@ Inside the container:
 Deployment prerequisites:
 
 - `FastAPIServer/alzheimer_xception_model.keras` must be present in the repository or copied into the Space before build
-- the clinical model file at `Clinical Dataset/xgb_tunned_clinical_model.joblib` must remain available
+- `FastAPIServer/xgb_tunned_clinical_model.joblib` must remain available
 
 Relevant deployment files:
 

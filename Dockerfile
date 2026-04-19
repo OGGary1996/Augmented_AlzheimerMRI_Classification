@@ -26,7 +26,6 @@ RUN pip install uv
 COPY FastAPIServer/pyproject.toml FastAPIServer/uv.lock ./FastAPIServer/
 RUN uv sync --project ./FastAPIServer --frozen
 
-COPY ["Clinical Dataset", "./Clinical Dataset"]
 COPY FastAPIServer ./FastAPIServer
 COPY alzheimerMRI_frontend ./alzheimerMRI_frontend
 COPY --from=frontend-builder /app/alzheimerMRI_frontend/dist ./alzheimerMRI_frontend/dist
